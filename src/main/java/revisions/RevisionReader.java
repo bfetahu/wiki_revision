@@ -11,18 +11,16 @@ import entities.WikipediaEntity;
 import entities.WikipediaEntityRevision;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXParseException;
+import utils.NLPUtils;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.io.IOException;
 import java.io.StringReader;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static utils.Utils.extractReferences;
 
@@ -31,7 +29,6 @@ import static utils.Utils.extractReferences;
  */
 public class RevisionReader {
 
-    //format of header: pageid="43326718" ns="0" title="Malaysia Airlines Flight 17"><revisions><rev revid="760816086" parentid="760525417" user="60.49.104.223" anon="" userid="0" timestamp="2017-01-19T06:40:29Z" comment="" contentformat="text/x-wiki" contentmodel="wikitext" xml:space="preserve">{{
 
     WikipediaEntityRevision lastRevision = new WikipediaEntityRevision();
 
@@ -66,7 +63,6 @@ public class RevisionReader {
                 continue;
             }
             Element root = doc.getDocumentElement();
-            //System.out.println(root.getNodeName());
 
             NodeList nList = root.getElementsByTagName("query");
             Node node = nList.item(0);
@@ -98,12 +94,11 @@ public class RevisionReader {
             WikipediaEntity entity = new WikipediaEntity();
 
             counter++;
-            System.out.println(counter);
 
             entity.setTitle(entity_title);
             entity.setCleanReferences(true);
             entity.setExtractReferences(true);
-            entity.setMainSectionsOnly(true);
+            entity.setMainSectionsOnly(false);
             entity.setSplitSections(true);
             entity.setContent(element.getTextContent());
 
@@ -144,7 +139,6 @@ public class RevisionReader {
 
             //current revision becomes last revision
             lastRevision = revision;
-
         }
 
     }
@@ -154,7 +148,7 @@ public class RevisionReader {
 
         WikipediaEntity entity = revision.entity;
 
-        Set<String> section_keys = entity.getSectionKeys(); //all section names of the article
+        Set<String> section_keys = entity.getSectionKeys(); //all section names of the article, also subsections
         Set<String> old_section_keys = lastRevision.entity.getSectionKeys();
         WikiSection main_section = entity.getSections();
 
@@ -164,6 +158,9 @@ public class RevisionReader {
         for (String section : section_keys) {
             //System.out.println(section);
             if (old_section_keys.contains(section)) {
+
+                //TODO: section name could have be changed, look for similar sections (text similarity measure)
+
                 for (String old_section : old_section_keys) {
                     if (old_section.equals(section)) {
                         compareTwoSections(entity, section, old_section, revision);
@@ -214,13 +211,42 @@ public class RevisionReader {
             return;
         }
 
+        //citations
         Set<String> referencesAdded = getReferencesAddedOrRemoved(section_text, old_section_text);
         Set<String> referencesRemoved = getReferencesAddedOrRemoved(old_section_text, section_text);
-
         if (referencesAdded.size() > 0) System.out.println("References added: " + referencesAdded
             + " by user: " + revision.user_id + " in revision: " + revision.revision_id);
         if (referencesRemoved.size() > 0) System.out.println("References removed: " + referencesRemoved
                 + " by user: " + revision.user_id + " in revision: " + revision.revision_id);
+
+        //text
+        Set<String> textAdded = getTextAdded(section_text, old_section_text);
+
+    }
+
+
+    public Set<String> getTextAdded(String new_text, String old_text) {
+        Set<String> different_text = new HashSet<>();
+
+        //check what text new_text contains that is not contained in old_text
+
+        NLPUtils nlp = new NLPUtils(2);
+        List<String> sentences_text1 = nlp.getDocumentSentences(new_text);
+        List<String> sentences_text2 = nlp.getDocumentSentences(old_text);
+
+        for (String sentence : sentences_text1){
+            if (!sentences_text2.contains(sentence)){
+                //sentence has been added(removed), changed or moved from(to) another section
+                //TODO: check if there is a similar sentence
+            }
+        }
+
+        return different_text;
+    }
+
+
+    public Set<String> getTextRemoved(String new_text, String old_text){
+        return null;
     }
 
 
@@ -237,16 +263,7 @@ public class RevisionReader {
                 different_refs.add(ref);
             }
         }
-
-        //testing
-        //if (different_refs.size() > 0) System.out.println(different_refs);
-
         return different_refs;
-    }
-
-
-    public void compareTwoTexts(String a, String b) {
-        //return the differences between a and b
     }
 
 
