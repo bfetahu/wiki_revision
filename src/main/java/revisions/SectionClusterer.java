@@ -57,15 +57,14 @@ public class SectionClusterer {
         xparams.setMinClusters(1);
         xparams.setMaxClusters(sections.keySet().size());
         xparams.setDistanceMetric(new CosineDistanceMetric());
-        xparams.setWorkerThreadCount(500);
+        xparams.setWorkerThreadCount(10);
 
         try {
             String[] section_headlines = new String[sections.size()];
             sections.keySet().toArray(section_headlines);
             double[][] scores = new double[section_headlines.length][section_headlines.length];
-            int index = 0;
             for (int i = 0; i < section_headlines.length; i++) {
-                for (int j = 0; j < section_headlines.length; j++) {
+                for (int j = i; j < section_headlines.length; j++) {
                     double score = 0.0;
                     if (i == j) {
                         score = 1.0;
@@ -73,6 +72,13 @@ public class SectionClusterer {
                         score = SimilarityMeasures.computeCosineSimilarity(sections.get(section_headlines[i]).toString(), sections.get(section_headlines[i]).toString());
                     }
                     scores[i][j] = score;
+                }
+            }
+
+            //update the similarities of the lower triangle of the matrix
+            for (int i = 0; i < scores.length; i++) {
+                for (int j = 0; j < i; j++) {
+                    scores[i][j] = scores[j][i];
                 }
             }
             TupleList tpl = new Array2DTupleList(scores);
