@@ -2,6 +2,7 @@ package mapred;
 
 
 import edu.jhu.nlp.wikipedia.WikiPage;
+import entities.WikiSection;
 import entities.WikipediaEntity;
 import entities.WikipediaEntityRevision;
 import org.apache.hadoop.conf.Configuration;
@@ -160,8 +161,18 @@ public class RevisionExtractor extends Configured implements Tool {
             //once you set the content it will split it into the corresponding sections.
             WikipediaEntity entity = new WikipediaEntity();
             entity.setTitle(title);
+            entity.setCleanReferences(true);
+            entity.setExtractReferences(true);
+            entity.setMainSectionsOnly(true);
             entity.setContent(page.getText());
-            page.getCategories().stream().forEach(category -> entity.addCategory(category));
+
+            Set<String> section_keys =entity.getSectionKeys();
+
+            for(String section:section_keys){
+                WikiSection sub_section = entity.getSection(section);
+                sub_section.setCitations(entity.getEntityCitations());
+            }
+            //page.getCategories().stream().forEach(category -> entity.addCategory(category));
 
             WikipediaEntityRevision entity_revision = new WikipediaEntityRevision();
             entity_revision.revision_id = value.getRevisionId();

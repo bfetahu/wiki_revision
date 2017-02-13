@@ -9,6 +9,7 @@ public class WikipediaEntityRevision {
     public String revision_comment;
     public long timestamp;
     public WikipediaEntity entity;
+    public long entity_id;
 
     public WikipediaEntityRevision() {
         entity = new WikipediaEntity();
