@@ -1,26 +1,22 @@
 package revisions;
 
-import org.apache.commons.lang3.StringEscapeUtils;
-import org.apache.xerces.parsers.DOMParser;
-import org.w3c.dom.*;
-import javax.xml.parsers.*;
-import java.io.*;
-
 import entities.WikiSection;
 import entities.WikipediaEntity;
 import entities.WikipediaEntityRevision;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXParseException;
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import utils.FileUtils;
 import utils.NLPUtils;
+import utils.SimilarityMeasures;
+import utils.WikiUtils;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.StringReader;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static utils.Utils.extractReferences;
-import static utils.Utils.getJaccardDistance;
 
 /**
  * Created by hube on 1/20/2017.
@@ -47,7 +43,7 @@ public class RevisionReader {
                 new InputStreamReader(
                         new FileInputStream(revisionsFile), "UTF8"));
 
-        readStopWordList("C:\\Users\\hube\\bias\\datasets\\stop_words");
+        stopWords = FileUtils.readIntoSet("C:\\Users\\hube\\bias\\datasets\\stop_words", "\n", false);
 
         String line = "";
         String revision_id = "";
@@ -68,8 +64,8 @@ public class RevisionReader {
 
             line = StringEscapeUtils.unescapeJson(line).trim();
             //read xml
-            Document doc = loadXMLFromString(line);
-            if (doc == null){
+            Document doc = FileUtils.readXMLDocumentFromString(line);
+            if (doc == null) {
                 System.out.println("Document was read as null!");
                 System.out.println(line);
                 continue;
@@ -177,7 +173,7 @@ public class RevisionReader {
                 if (!firstRevision) {
                     for (String old_section : old_section_keys) {
                         //compare section texts
-                        double jacdis = getJaccardDistance(revision.entity.getSectionText(section), lastRevision.entity.getSectionText(old_section));
+                        double jacdis = SimilarityMeasures.computeJaccardDistance(revision.entity.getSectionText(section), lastRevision.entity.getSectionText(old_section));
                         if (jacdis < 0.5 && jacdis < mostSimilarSectionDistance) {
                             mostSimilarSection = old_section;
                             mostSimilarSectionDistance = jacdis;
@@ -185,10 +181,10 @@ public class RevisionReader {
                     }
                 }
 
-                if (!mostSimilarSection.equals("")){
+                if (!mostSimilarSection.equals("")) {
                     compareTwoSections(entity, section, mostSimilarSection, revision);
                     break;
-                } else{
+                } else {
                     //new section
                     compareTwoSections(entity, section, "", revision); //compare with blank
 
@@ -215,27 +211,27 @@ public class RevisionReader {
         //retrieve the sections
         String section_text = entity.getSectionText(section_title);
 
-        if (section_text == null){
+        if (section_text == null) {
             System.out.println("Got null for section: " + section_title + " revision_id: " + revision.revision_id);
             return;
         }
 
-        if (section_text.equals("Section does not exist!")){
+        if (section_text.equals("Section does not exist!")) {
             System.out.println("Section " + section_title + " does not exist!");
         }
 
         String old_section_text;
-        if (old_section_title.equals("")){ //this is the case when the section is new
+        if (old_section_title.equals("")) { //this is the case when the section is new
             old_section_text = "";
-        } else{
+        } else {
             old_section_text = lastRevision.entity.getSectionText(old_section_title);
         }
 
-        if (section_text == null){
+        if (section_text == null) {
             System.out.println("section_text is NULL!");
             return;
         }
-        if (old_section_text == null){
+        if (old_section_text == null) {
             System.out.println("old_section_text is NULL!");
             return;
         }
@@ -279,29 +275,29 @@ public class RevisionReader {
         //check what text text1 contains that is not contained in text2
 
         //escape instead?
-        text1 = text1.replace("�","");
-        text2 = text2.replace("�","");
+        text1 = text1.replace("�", "");
+        text2 = text2.replace("�", "");
         text1 = text1.replaceAll("\\{\\{[0-9]+}}", "");
         text2 = text2.replaceAll("\\{\\{[0-9]+}}", "");
 
         List<String> sentences_text1 = nlp.getDocumentSentences(text1);
         List<String> sentences_text2 = nlp.getDocumentSentences(text2);
 
-        for (String sentence_text1 : sentences_text1){
+        for (String sentence_text1 : sentences_text1) {
 
             Set<String> sentence_words_text1 = genereateWordBag(sentence_text1);
 
-            if (!sentences_text2.contains(sentence_text1)){ //does not work for all cases
+            if (!sentences_text2.contains(sentence_text1)) { //does not work for all cases
                 //sentence has been added, changed or moved from another section
 
                 //check if there is a similar sentence in the old revision. If there are multiple ones, pick the most similar one.
                 String mostSimilarSentence = "";
                 double mostSimilarSentenceDis = 1.0;
 
-                for (String sentence_text2 : sentences_text2){
-                    double jacdis = getJaccardDistance(sentence_text1,sentence_text2);
+                for (String sentence_text2 : sentences_text2) {
+                    double jacdis = SimilarityMeasures.computeJaccardDistance(sentence_text1, sentence_text2);
 
-                    if (jacdis <= 0.5 && jacdis < mostSimilarSentenceDis){
+                    if (jacdis <= 0.5 && jacdis < mostSimilarSentenceDis) {
                         mostSimilarSentence = sentence_text2;
                         mostSimilarSentenceDis = jacdis;
                     }
@@ -311,18 +307,18 @@ public class RevisionReader {
 
                     Set<String> mostSimilarSentence_words = genereateWordBag(mostSimilarSentence);
 
-                    for (String word : sentence_words_text1){
-                        if (!mostSimilarSentence_words.contains(word)){
-                                different_text.add(word);
+                    for (String word : sentence_words_text1) {
+                        if (!mostSimilarSentence_words.contains(word)) {
+                            different_text.add(word);
                         }
                     }
-                } else{
+                } else {
                     //no similar sentence found --> new (removed) sentence
-                    for (String word : sentence_words_text1){
+                    for (String word : sentence_words_text1) {
                         different_text.add(word);
                     }
                 }
-            } else{
+            } else {
                 //nothing has been added or removed
                 //System.out.println("No changes");
             }
@@ -332,18 +328,18 @@ public class RevisionReader {
     }
 
 
-    public Set<String> genereateWordBag(String sentence){
+    public Set<String> genereateWordBag(String sentence) {
 
         Set<String> word_bag = new HashSet<>();
 
         //clean
-        sentence = sentence.replace("\n"," ");
-        sentence = sentence.replaceAll("[\\[\\].:,!?;()\"\'{}|=/<>+*]"," ");
+        sentence = sentence.replace("\n", " ");
+        sentence = sentence.replaceAll("[\\[\\].:,!?;()\"\'{}|=/<>+*]", " ");
         sentence = sentence.toLowerCase();
 
         String[] sentence_split = sentence.split(" ");
-        for (String word : sentence_split){
-            word = word.replaceAll("\\s+","");
+        for (String word : sentence_split) {
+            word = word.replaceAll("\\s+", "");
             if (!stopWords.contains(word) && !word.equals("")) word_bag.add(word);
         }
 
@@ -354,52 +350,28 @@ public class RevisionReader {
     //checks what refs are contained in text1 but not in text2
     public Set<String> getReferencesAddedOrRemoved(String text1, String text2) {
         //System.out.println("text1: " + text1 + " text2: " + text2);
-        Set<String> text1_refs = extractReferences(text1);
+        Map<Integer, Map<String, String>> ref_1 = new HashMap<>();
+        Map<Integer, Map<String, String>> ref_2 = new HashMap<>();
+        WikiUtils.extractWikiReferences(text1, ref_1);
+        WikiUtils.extractWikiReferences(text2, ref_2);
 
-        Set<String> text2_refs = extractReferences(text2);
-        Set<String> different_refs = new HashSet<String>();
+        Set<String> different_refs = new HashSet<>();
 
-        for (String ref : text1_refs) {
-            if (!text2_refs.contains(ref)) {
-                different_refs.add(ref);
-            }
+        Set<String> ref_1_urls = new HashSet<>();
+        Set<String> ref_2_urls = new HashSet<>();
+        for (int ref : ref_1.keySet()) {
+            String url = ref_1.get(ref).get("url");
+            ref_1_urls.add(url);
         }
+
+        for (int ref : ref_2.keySet()) {
+            String url = ref_2.get(ref).get("url");
+            ref_2_urls.add(url);
+        }
+
+        different_refs.addAll(ref_1_urls);
+        different_refs.removeAll(ref_2_urls);
         return different_refs;
-    }
-
-
-    public static Document loadXMLFromString(String xml) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        // InputSource is = new InputSource(new FileReader("C:\\Users\\hube\\Desktop\\mh17.xml"));
-        InputSource is = new InputSource(new StringReader(xml));
-
-        DOMParser parser = new DOMParser();
-        xml = xml.replaceAll("^(.*?)$", "");
-
-        Document doc = null;
-        try {
-            parser.parse(new InputSource(new java.io.StringReader((xml))));
-            doc = parser.getDocument();
-        }catch(SAXParseException e){
-            e.printStackTrace();
-            //System.out.println(xml);
-        }
-
-        return doc;
-    }
-
-
-    public void readStopWordList(String file) throws IOException {
-        BufferedReader reader = new BufferedReader(
-                new InputStreamReader(
-                        new FileInputStream(file), "UTF8"));
-
-        String line;
-
-        while ((line = reader.readLine()) != null) {
-            stopWords.add(line);
-        }
     }
 
 
