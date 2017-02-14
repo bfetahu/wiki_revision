@@ -2,7 +2,6 @@ package revisions;
 
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.battelle.clodhopper.Cluster;
-import org.battelle.clodhopper.distance.CosineDistanceMetric;
 import org.battelle.clodhopper.tuple.Array2DTupleList;
 import org.battelle.clodhopper.tuple.TupleList;
 import org.battelle.clodhopper.util.IntIterator;
@@ -21,13 +20,13 @@ import java.util.stream.IntStream;
  */
 public class SectionClusterer {
     public static void main(String[] args) throws IOException {
-        String[] args1 = {"/Users/besnik/Downloads/malaysia_airlins_17_sections_sorted", "/Users/besnik/Datasets/english.stop"};
-        args = args1;
         Set<String> stop_words = FileUtils.readIntoSet(args[1], "\n", false);
 
         //read the sections into the map data structure.
         Map<String, StringBuffer> sections = new HashMap<>();
         BufferedReader reader = FileUtils.getFileReader(args[0]);
+        Map<Long, Set<String>> revision_sections = new HashMap<>();
+
         while (reader.ready()) {
             String section_revision_line = reader.readLine().trim();
             String[] data = section_revision_line.split("\t");
@@ -36,29 +35,38 @@ public class SectionClusterer {
                 continue;
             }
 
-            String section_title = data[0];
+            String section_title = data[0].trim().toLowerCase();
+            long rev_id = Long.valueOf(data[1]);
             String section_text = StringEscapeUtils.unescapeJson(data[2]);
             if (!sections.containsKey(section_title)) {
                 sections.put(section_title, new StringBuffer());
             }
             sections.get(section_title).append(section_text).append("\n");
+
+            if (!revision_sections.containsKey(rev_id)) {
+                revision_sections.put(rev_id, new HashSet<>());
+            }
+            revision_sections.get(rev_id).add(section_title);
         }
 
+        //compute the average number of sections across all revisions
+        int min_section_num = revision_sections.values().stream().mapToInt(x -> x.size()).min().getAsInt();
+        int max_section_num = revision_sections.values().stream().mapToInt(x -> x.size()).max().getAsInt();
+
         //cluster the sections
-        String cluster_output = clusterSections(sections, stop_words);
+        String cluster_output = clusterSections(sections, stop_words, min_section_num, max_section_num);
         System.out.println(cluster_output);
     }
 
     /**
      * Perform XMeans clustering on the section labels.
      */
-    private static String clusterSections(Map<String, StringBuffer> sections, Set<String> stop_words) {
+    private static String clusterSections(Map<String, StringBuffer> sections, Set<String> stop_words, int min_num_clusters, int max_num_clusters) {
         SimilarityMeasures.stop_words = stop_words;
         XMeansParams xparams = new XMeansParams();
-        xparams.setMinClusters(2);
-        xparams.setMaxClusters(sections.keySet().size());
-        xparams.setDistanceMetric(new CosineDistanceMetric());
-        xparams.setWorkerThreadCount(100);
+        xparams.setMinClusters(min_num_clusters);
+        xparams.setMaxClusters(max_num_clusters);
+        xparams.setWorkerThreadCount(500);
         xparams.setUseOverallBIC(true);
 
         try {
