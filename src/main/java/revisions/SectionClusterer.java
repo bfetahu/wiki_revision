@@ -1,5 +1,6 @@
 package revisions;
 
+import entities.WikipediaEntity;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.battelle.clodhopper.Cluster;
 import org.battelle.clodhopper.tuple.Array2DTupleList;
@@ -7,6 +8,8 @@ import org.battelle.clodhopper.tuple.TupleList;
 import org.battelle.clodhopper.util.IntIterator;
 import org.battelle.clodhopper.xmeans.XMeansClusterer;
 import org.battelle.clodhopper.xmeans.XMeansParams;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import utils.FileUtils;
 import utils.SimilarityMeasures;
 
@@ -20,13 +23,36 @@ import java.util.stream.IntStream;
  */
 public class SectionClusterer {
     public static void main(String[] args) throws IOException {
-        Set<String> stop_words = FileUtils.readIntoSet(args[1], "\n", false);
+        String input_file = args[0];
+        String out_file = args[1];
+        String stop_words_file = args[2];
+        boolean is_raw_revision_file = args[3].equals("true");
 
+        Set<String> stop_words = FileUtils.readIntoSet(stop_words_file, "\n", false);
+        Map<Long, Set<String>> revision_sections = new HashMap<>();
+        Map<String, StringBuffer> sections = is_raw_revision_file ? readSectionsFromRawRevisions(input_file, revision_sections) : readProcessedSectionRevisions(input_file, revision_sections);
+
+        //compute the average number of sections across all revisions
+        int min_section_num = revision_sections.values().stream().mapToInt(x -> x.size()).min().getAsInt();
+        int max_section_num = revision_sections.values().stream().mapToInt(x -> x.size()).max().getAsInt();
+
+        //cluster the sections
+        String cluster_output = clusterSections(sections, stop_words, min_section_num, max_section_num);
+        System.out.println(cluster_output);
+        FileUtils.saveText(cluster_output, out_file);
+    }
+
+    /**
+     * Read the processed revisions. In each line we have a revision and the section text.
+     *
+     * @param file
+     * @return
+     * @throws IOException
+     */
+    public static Map<String, StringBuffer> readProcessedSectionRevisions(String file, Map<Long, Set<String>> revision_sections) throws IOException {
         //read the sections into the map data structure.
         Map<String, StringBuffer> sections = new HashMap<>();
-        BufferedReader reader = FileUtils.getFileReader(args[0]);
-        Map<Long, Set<String>> revision_sections = new HashMap<>();
-
+        BufferedReader reader = FileUtils.getFileReader(file);
         while (reader.ready()) {
             String section_revision_line = reader.readLine().trim();
             String[] data = section_revision_line.split("\t");
@@ -48,14 +74,57 @@ public class SectionClusterer {
             }
             revision_sections.get(rev_id).add(section_title);
         }
+        return sections;
+    }
 
-        //compute the average number of sections across all revisions
-        int min_section_num = revision_sections.values().stream().mapToInt(x -> x.size()).min().getAsInt();
-        int max_section_num = revision_sections.values().stream().mapToInt(x -> x.size()).max().getAsInt();
+    /**
+     * Read the section text from the raw revisions.
+     *
+     * @param file
+     * @return
+     */
+    public static Map<String, StringBuffer> readSectionsFromRawRevisions(String file, Map<Long, Set<String>> revision_sections) throws IOException {
+        Map<String, StringBuffer> sections = new HashMap<>();
+        BufferedReader reader = FileUtils.getFileReader(file);
+        String line;
 
-        //cluster the sections
-        String cluster_output = clusterSections(sections, stop_words, min_section_num, max_section_num);
-        System.out.println(cluster_output);
+        while ((line = reader.readLine()) != null) {
+            if (line.trim().isEmpty()) {
+                continue;
+            }
+            String revision_xml_text = StringEscapeUtils.unescapeJson(line).trim();
+            Document revision_doc = FileUtils.readXMLDocumentFromString(revision_xml_text);
+
+            //get the revision text
+            String entity_title = ((Element) revision_doc.getElementsByTagName("query").item(0).getFirstChild().getFirstChild()).getAttribute("title");
+            String rev_text = revision_doc.getElementsByTagName("query").item(0).getFirstChild().getFirstChild().getFirstChild().getFirstChild().getTextContent();
+            long rev_id = Long.parseLong(((Element) revision_doc.getElementsByTagName("query").item(0).getFirstChild().getFirstChild().getFirstChild().getFirstChild()).getAttribute("revid"));
+
+            WikipediaEntity entity = new WikipediaEntity();
+            entity.setTitle(entity_title);
+            entity.setSplitSections(true);
+            entity.setMainSectionsOnly(false);
+            entity.setExtractReferences(true);
+            entity.setCleanReferences(true);
+            entity.setContent(rev_text);
+
+            //extract the references.
+            for (String section : entity.getSectionKeys()) {
+                String section_text = entity.getSectionText(section);
+
+                String section_label = section.toLowerCase().replaceAll("\\{\\{(.*?)\\}\\}", "").replaceAll("<ref>(.*)</?ref>", "").trim();
+                if (!sections.containsKey(section_label)) {
+                    sections.put(section_label, new StringBuffer());
+                }
+                sections.get(section_label).append(section_text).append("\n");
+
+                if (!revision_sections.containsKey(rev_id)) {
+                    revision_sections.put(rev_id, new HashSet<>());
+                }
+                revision_sections.get(rev_id).add(section_label);
+            }
+        }
+        return sections;
     }
 
     /**
