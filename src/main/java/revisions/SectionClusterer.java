@@ -4,6 +4,7 @@ import entities.WikiSection;
 import entities.WikipediaEntity;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.battelle.clodhopper.Cluster;
+import org.battelle.clodhopper.distance.EuclideanDistanceMetric;
 import org.battelle.clodhopper.tuple.Array2DTupleList;
 import org.battelle.clodhopper.tuple.TupleList;
 import org.battelle.clodhopper.util.IntIterator;
@@ -24,6 +25,8 @@ import java.util.stream.IntStream;
  */
 public class SectionClusterer {
     public static void main(String[] args) throws IOException {
+        /*String[] args1 = {"/Users/besnik/Desktop/Malaysia_Airlines_Flight_17.rev.gz", "/Users/besnik/Desktop/", "/Users/besnik/Datasets/english.stop", "true"};
+        args = args1;*/
         String input_file = args[0];
         String out_file = args[1];
         String stop_words_file = args[2];
@@ -103,11 +106,12 @@ public class SectionClusterer {
             String rev_text = revision_doc.getElementsByTagName("query").item(0).getFirstChild().getFirstChild().getFirstChild().getFirstChild().getTextContent();
             long rev_id = Long.parseLong(((Element) revision_doc.getElementsByTagName("query").item(0).getFirstChild().getFirstChild().getFirstChild().getFirstChild()).getAttribute("revid"));
 
+
             WikipediaEntity entity = new WikipediaEntity();
             entity.setTitle(entity_title);
             entity.setSplitSections(true);
             entity.setMainSectionsOnly(false);
-            entity.setExtractReferences(true);
+            entity.setExtractReferences(false);
             entity.setCleanReferences(true);
             entity.setContent(rev_text);
 
@@ -146,8 +150,8 @@ public class SectionClusterer {
         XMeansParams xparams = new XMeansParams();
         xparams.setMinClusters(min_num_clusters);
         xparams.setMaxClusters(max_num_clusters);
+        xparams.setDistanceMetric(new EuclideanDistanceMetric());
         xparams.setWorkerThreadCount(500);
-        xparams.setUseOverallBIC(true);
 
         StringBuffer sb = new StringBuffer();
         try {
