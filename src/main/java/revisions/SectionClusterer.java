@@ -14,6 +14,7 @@ import utils.SimilarityMeasures;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.IntStream;
 
 /**
  * Created by besnik on 2/13/17.
@@ -54,26 +55,27 @@ public class SectionClusterer {
     private static String clusterSections(Map<String, StringBuffer> sections, Set<String> stop_words) {
         SimilarityMeasures.stop_words = stop_words;
         XMeansParams xparams = new XMeansParams();
-        xparams.setMinClusters(1);
+        xparams.setMinClusters(2);
         xparams.setMaxClusters(sections.keySet().size());
         xparams.setDistanceMetric(new CosineDistanceMetric());
-        xparams.setWorkerThreadCount(10);
+        xparams.setWorkerThreadCount(100);
+        xparams.setUseOverallBIC(true);
 
         try {
             String[] section_headlines = new String[sections.size()];
             sections.keySet().toArray(section_headlines);
             double[][] scores = new double[section_headlines.length][section_headlines.length];
-            for (int i = 0; i < section_headlines.length; i++) {
+            IntStream.range(0, section_headlines.length).parallel().forEach(i -> {
                 for (int j = i; j < section_headlines.length; j++) {
                     double score = 0.0;
                     if (i == j) {
                         score = 1.0;
                     } else {
-                        score = SimilarityMeasures.computeCosineSimilarity(sections.get(section_headlines[i]).toString(), sections.get(section_headlines[i]).toString());
+                        score = SimilarityMeasures.computeCosineSimilarity(sections.get(section_headlines[i]).toString(), sections.get(section_headlines[j]).toString());
                     }
                     scores[i][j] = score;
                 }
-            }
+            });
 
             //update the similarities of the lower triangle of the matrix
             for (int i = 0; i < scores.length; i++) {
@@ -91,18 +93,17 @@ public class SectionClusterer {
 
             int cluster_id = 1;
             //convert the keys to a set
-            Integer[] section_title_array = new Integer[section_headlines.length];
-            Map<Integer, Set<Integer>> cluster_instances = new HashMap<>();
+            Map<Integer, Set<String>> cluster_instances = new HashMap<>();
 
             for (Cluster cluster : clusters) {
-                Set<Integer> sub_cluster_instances = new HashSet<>();
+                Set<String> sub_cluster_instances = new HashSet<>();
                 cluster_instances.put(cluster_id, sub_cluster_instances);
 
                 IntIterator sections_indices = cluster.getMembers();
                 while (sections_indices.hasNext()) {
                     int section_index = sections_indices.getNext();
-                    int section_id = section_title_array[section_index];
-                    sub_cluster_instances.add(section_id);
+                    String section = section_headlines[section_index];
+                    sub_cluster_instances.add(section);
                 }
                 cluster_id++;
             }
@@ -110,8 +111,8 @@ public class SectionClusterer {
             StringBuffer sb = new StringBuffer();
             for (int cluster_id_key : cluster_instances.keySet()) {
                 String clustered_sections = "";
-                for (int section_indice : cluster_instances.get(cluster_id_key)) {
-                    clustered_sections = section_headlines[section_indice] + ";";
+                for (String section : cluster_instances.get(cluster_id_key)) {
+                    clustered_sections = clustered_sections + section + ";";
                 }
                 sb.append(cluster_id_key).append("\t").append(clustered_sections).append("\n");
             }
