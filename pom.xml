@@ -77,20 +77,16 @@
             <version>1.2</version>
             <exclusions>
                 <exclusion>
-                    <groupId>edu.stanford.nlp</groupId>
-                    <artifactId>stanford-corenlp</artifactId>
+                    <groupId>mallet</groupId>
+                    <artifactId>mallet.lda</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId>edu.stanford.nlp</groupId>
-                    <artifactId>stanford-parser</artifactId>
+                    <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId>org.apache.lucene</groupId>
-                    <artifactId>lucene-snowball</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.json</groupId>
-                    <artifactId>json</artifactId>
+                    <groupId>net.sf.trove4j</groupId>
+                    <artifactId>trove4j</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -128,7 +124,6 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.7</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>de.l3s</groupId>
@@ -159,18 +154,6 @@
             <groupId>edu.nlp</groupId>
             <artifactId>edu.nlp.wiki</artifactId>
             <version>1.0</version>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.battelle/clodhopper-core -->
-        <dependency>
-            <groupId>org.battelle</groupId>
-            <artifactId>clodhopper-core</artifactId>
-            <version>1.2</version>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/net.sf.trove4j/trove4j -->
-        <dependency>
-            <groupId>net.sf.trove4j</groupId>
-            <artifactId>trove4j</artifactId>
-            <version>3.0.1</version>
         </dependency>
 
     </dependencies>
