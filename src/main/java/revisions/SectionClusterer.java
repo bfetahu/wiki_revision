@@ -1,28 +1,12 @@
 package revisions;
 
-import entities.WikipediaEntity;
-import org.apache.commons.lang3.StringEscapeUtils;
-import org.battelle.clodhopper.Cluster;
-import org.battelle.clodhopper.tuple.Array2DTupleList;
-import org.battelle.clodhopper.tuple.TupleList;
-import org.battelle.clodhopper.util.IntIterator;
-import org.battelle.clodhopper.xmeans.XMeansClusterer;
-import org.battelle.clodhopper.xmeans.XMeansParams;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import utils.FileUtils;
-import utils.SimilarityMeasures;
-
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.util.*;
-import java.util.stream.IntStream;
 
 /**
  * Created by besnik on 2/13/17.
  */
 public class SectionClusterer {
-    public static void main(String[] args) throws IOException {
+    /*public static void main(String[] args) throws IOException {
         String input_file = args[0];
         String out_file = args[1];
         String stop_words_file = args[2];
@@ -42,13 +26,13 @@ public class SectionClusterer {
         FileUtils.saveText(cluster_output, out_file);
     }
 
-    /**
+    *//**
      * Read the processed revisions. In each line we have a revision and the section text.
      *
      * @param file
      * @return
      * @throws IOException
-     */
+     *//*
     public static Map<String, StringBuffer> readProcessedSectionRevisions(String file, Map<Long, Set<String>> revision_sections) throws IOException {
         //read the sections into the map data structure.
         Map<String, StringBuffer> sections = new HashMap<>();
@@ -77,12 +61,12 @@ public class SectionClusterer {
         return sections;
     }
 
-    /**
+    *//**
      * Read the section text from the raw revisions.
      *
      * @param file
      * @return
-     */
+     *//*
     public static Map<String, StringBuffer> readSectionsFromRawRevisions(String file, Map<Long, Set<String>> revision_sections) throws IOException {
         Map<String, StringBuffer> sections = new HashMap<>();
         BufferedReader reader = FileUtils.getFileReader(file);
@@ -127,9 +111,9 @@ public class SectionClusterer {
         return sections;
     }
 
-    /**
+    *//**
      * Perform XMeans clustering on the section labels.
-     */
+     *//*
     private static String clusterSections(Map<String, StringBuffer> sections, Set<String> stop_words, int min_num_clusters, int max_num_clusters) {
         SimilarityMeasures.stop_words = stop_words;
         XMeansParams xparams = new XMeansParams();
@@ -198,5 +182,5 @@ public class SectionClusterer {
             e.printStackTrace();
         }
         return "";
-    }
+    }*/
 }

@@ -44,6 +44,7 @@ public class RevisionReader {
                         new FileInputStream(revisionsFile), "UTF8"));
 
         stopWords = FileUtils.readIntoSet("C:\\Users\\hube\\bias\\datasets\\stop_words", "\n", false);
+        SimilarityMeasures.stop_words = stopWords;
 
         String line = "";
         String revision_id = "";
@@ -57,8 +58,6 @@ public class RevisionReader {
 
 
         while ((line = reader.readLine()) != null && counter < 5000) {
-
-            //System.out.println(line);
 
             WikipediaEntityRevision revision = new WikipediaEntityRevision();
 
@@ -152,80 +151,97 @@ public class RevisionReader {
         Set<String> section_keys = entity.getSectionKeys(); //all section names of the article, also subsections
         Set<String> old_section_keys = lastRevision.entity.getSectionKeys();
 
+        Set<String> removed_section_keys = new HashSet<>();
+        Set<String> added_section_keys = new HashSet<>();
+
         //compare sections with their counterpart in the old revision, for now: only exact matches
-
-        //check for new sections
-        for (String section : section_keys) {
-            //System.out.println(section);
-            if (old_section_keys.contains(section)) {
-
-                for (String old_section : old_section_keys) {
-                    if (old_section.equals(section)) {
-                        compareTwoSections(entity, section, old_section, revision);
-                        break;
-                    }
-                }
-            } else {
-                //check if section name has been changed
-                String mostSimilarSection = "";
-                double mostSimilarSectionDistance = 1.0;
-
-                if (!firstRevision) {
-                    for (String old_section : old_section_keys) {
-                        //compare section texts
-                        double jacdis = SimilarityMeasures.computeJaccardDistance(revision.entity.getSectionText(section), lastRevision.entity.getSectionText(old_section));
-                        if (jacdis < 0.5 && jacdis < mostSimilarSectionDistance) {
-                            mostSimilarSection = old_section;
-                            mostSimilarSectionDistance = jacdis;
-                        }
-                    }
-                }
-
-                if (!mostSimilarSection.equals("")) {
-                    compareTwoSections(entity, section, mostSimilarSection, revision);
-                    break;
-                } else {
-                    //new section
-                    compareTwoSections(entity, section, "", revision); //compare with blank
-
-//                    System.out.println("New section: " + section + " added by user: " + revision.user_id
-//                            + " in revision: " + revision.revision_id);
-                }
-            }
-        }
 
         //check for deleted sections
         for (String old_section : old_section_keys) {
             if (section_keys.contains(old_section)) {
                 continue;
             } else {
-                //deleted section
-                //System.out.println("Deleted section: " + old_section + " deleted by user: " + revision.user_id
-                //        + " in revision: " + revision.revision_id);
+                //section has been deleted or renamed
+                removed_section_keys.add(old_section);
             }
         }
+
+        //check for new,renamed,merged,split sections
+        for (String section : section_keys) {
+
+            if (section.equals("")){
+//                System.out.println("empty label");
+            }
+
+            if (old_section_keys.contains(section)) {
+
+                for (String old_section : old_section_keys) {
+                    if (old_section.equals(section)) {
+                        compareTwoSections(entity, entity.getSectionText(section), lastRevision.entity.getSectionText(old_section), revision);
+                        break;
+                    }
+                }
+            } else {
+                //check if section name has been changed
+                String mostSimilarSection = "";
+                double mostSimilarSectionDistance = 0.0;
+
+                //if multiple similar sections in old version exit --> possible section merge
+                Set<String> similarSections = new HashSet<>();
+
+                //testing
+                added_section_keys.add(section);
+
+                if (!firstRevision) {
+                    for (String old_section : removed_section_keys) {
+
+                        //pairs for ground truth check
+//                        Date old_revision_date = new Date(lastRevision.timestamp);
+//                        Date new_revision_date = new Date(revision.timestamp);
+//                        System.out.println(old_revision_date + " " + new_revision_date + " " + user_name + " old_section_name:"
+//                                + old_section + " new_section_name:" + section);
+
+                        //compare section texts
+                        double jacdis = SimilarityMeasures.computeJaccardDistance(revision.entity.getSectionText(section), lastRevision.entity.getSectionText(old_section));
+                        if (jacdis > 0.5 && jacdis > mostSimilarSectionDistance) {
+                            mostSimilarSection = old_section;
+                            mostSimilarSectionDistance = jacdis;
+                            similarSections.add(old_section);
+                        }
+                    }
+                }
+
+                if (mostSimilarSection.equals("")) {
+                    compareTwoSections(entity, entity.getSectionText(section), "", revision); //compare with blank
+
+//                    System.out.println("rename: no");
+                } else {
+                    //check for possible section merge
+                    if (similarSections.size() > 1){
+
+                        System.out.println("section merge! old section:" + similarSections + " new section: "
+                                + section + " time: " + revision.timestamp + " user: " + user_name);
+
+                        //merge old section texts and compare with new section
+                        String mergedSections = "";
+                        for (String similarSection : similarSections){
+                            mergedSections = mergedSections + lastRevision.entity.getSectionText(similarSection);
+                            compareTwoSections(entity, entity.getSectionText(section), mergedSections, revision);
+                        }
+                    } else{
+                        compareTwoSections(entity, entity.getSectionText(section), lastRevision.entity.getSectionText(mostSimilarSection), revision);
+
+//                        System.out.println("rename: yes, " + mostSimilarSection);
+                        //new section
+                    }
+                }
+            }
+        }
+
     }
 
 
-    public void compareTwoSections(WikipediaEntity entity, String section_title, String old_section_title, WikipediaEntityRevision revision) throws IOException {
-        //retrieve the sections
-        String section_text = entity.getSectionText(section_title);
-
-        if (section_text == null) {
-            System.out.println("Got null for section: " + section_title + " revision_id: " + revision.revision_id);
-            return;
-        }
-
-        if (section_text.equals("Section does not exist!")) {
-            System.out.println("Section " + section_title + " does not exist!");
-        }
-
-        String old_section_text;
-        if (old_section_title.equals("")) { //this is the case when the section is new
-            old_section_text = "";
-        } else {
-            old_section_text = lastRevision.entity.getSectionText(old_section_title);
-        }
+    public void compareTwoSections(WikipediaEntity entity, String section_text, String old_section_text, WikipediaEntityRevision revision) throws IOException {
 
         if (section_text == null) {
             System.out.println("section_text is NULL!");
@@ -247,15 +263,6 @@ public class RevisionReader {
         //text
         Set<String> textAdded = getTextDifferences(section_text, old_section_text);
         Set<String> textRemoved = getTextDifferences(old_section_text, section_text);
-
-        //if (textAdded.size() > 0) System.out.println("old : " + old_section_text + "\nnew: " + section_text + "\n" + textAdded);
-        //if (textAdded.size() > 0) System.out.println("textAdded: " + textAdded);
-        //if (textRemoved.size() > 0) System.out.println("textRemoved: " + textRemoved);
-
-        //testing
-        if (section_title.equals("") || section_title.equals(" ")) {
-            System.out.println("empty title");
-        }
 
 //        System.out.println(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + section_title + "\t" + revision.revision_id
 //                + "\t" + revision.timestamp + "\t" + revision.revision_comment + "\t" + referencesAdded + "\t" + referencesRemoved
@@ -292,12 +299,12 @@ public class RevisionReader {
 
                 //check if there is a similar sentence in the old revision. If there are multiple ones, pick the most similar one.
                 String mostSimilarSentence = "";
-                double mostSimilarSentenceDis = 1.0;
+                double mostSimilarSentenceDis = 0.0;
 
                 for (String sentence_text2 : sentences_text2) {
                     double jacdis = SimilarityMeasures.computeJaccardDistance(sentence_text1, sentence_text2);
 
-                    if (jacdis <= 0.5 && jacdis < mostSimilarSentenceDis) {
+                    if (jacdis > 0.5 && jacdis > mostSimilarSentenceDis) {
                         mostSimilarSentence = sentence_text2;
                         mostSimilarSentenceDis = jacdis;
                     }
@@ -349,7 +356,7 @@ public class RevisionReader {
 
     //checks what refs are contained in text1 but not in text2
     public Set<String> getReferencesAddedOrRemoved(String text1, String text2) {
-        //System.out.println("text1: " + text1 + " text2: " + text2);
+
         Map<Integer, Map<String, String>> ref_1 = new HashMap<>();
         Map<Integer, Map<String, String>> ref_2 = new HashMap<>();
         WikiUtils.extractWikiReferences(text1, ref_1);
