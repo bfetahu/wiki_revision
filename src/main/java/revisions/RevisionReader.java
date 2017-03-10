@@ -1,11 +1,9 @@
 package revisions;
 
-import entities.WikiSection;
 import entities.WikipediaEntity;
 import entities.WikipediaEntityRevision;
-import it.unimi.dsi.fastutil.Hash;
-import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.hedera.io.Revision;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -39,10 +37,10 @@ public class RevisionReader {
     Map<String,String> sentences_old_revision = new HashMap<>();
     Map<String,String> urls_old_revision = new HashMap<>();
 
-
-    //FileWriter fw = new FileWriter("C:\\Users\\hube\\bias\\generated_datasets\\malaysia_airlins_17_sections");
+    FileWriter fw = new FileWriter("C:\\Users\\hube\\bias\\generated_datasets\\tests");
 
     public RevisionReader() throws IOException {
+
     }
 
 
@@ -63,10 +61,7 @@ public class RevisionReader {
         String entity_title = "";
         String entity_id = "";
 
-        int counter = 0;
-
-
-        while ((line = reader.readLine()) != null && counter < 10000) {
+        while ((line = reader.readLine()) != null) {
 
             WikipediaEntityRevision revision = new WikipediaEntityRevision();
 
@@ -109,8 +104,6 @@ public class RevisionReader {
 
             WikipediaEntity entity = new WikipediaEntity();
 
-            counter++;
-
             entity.setTitle(entity_title);
             entity.setCleanReferences(true);
             entity.setExtractReferences(false);
@@ -137,6 +130,8 @@ public class RevisionReader {
             if (firstRevision){
                 WikipediaEntity emptyEntity = new WikipediaEntity();
                 entity.setSplitSections(true);
+
+                //set content to empty
                 emptyEntity.setContent("{{Infobox aircraft occurrence\n" +
                         "}}\n" +
                         "==References==\n" +
@@ -155,7 +150,7 @@ public class RevisionReader {
     }
 
 
-    public void compareWithOldRevision(WikipediaEntityRevision revision){
+    public void compareWithOldRevision(WikipediaEntityRevision revision) throws IOException {
         revision_string = "https://en.wikipedia.org/w/index.php?diff=" + revision.revision_id
                 + "&oldid=" + lastRevision.revision_id;
 
@@ -177,48 +172,101 @@ public class RevisionReader {
         computeContentDifferences(newSectionsToOldSections, revision, lastRevision, sectionToContentAdded, sectionToNewsReferencesAdded, sectionToOtherReferencesAdded);
         computeContentDifferences(oldSectionsToNewSections, lastRevision, revision, sectionToContentRemoved, sectionToNewsReferencesRemoved, sectionToOtherReferencesRemoved);
 
-        //output
+        //output changes in all sections
         for (String section : newSectionsToOldSections.keySet()){
-
-            if (!sectionToContentAdded.containsKey(section)) {
-                Set<String> set = new HashSet<>();
-                sectionToContentAdded.put(section,set);
-            }
-            if (!sectionToContentRemoved.containsKey(section)) {
-                Set<String> set = new HashSet<>();
-                sectionToContentRemoved.put(section,set);
-            }
-            if (!sectionToNewsReferencesAdded.containsKey(section)) {
-                Set<String> set = new HashSet<>();
-                sectionToNewsReferencesAdded.put(section,set);
-            }
-            if (!sectionToNewsReferencesRemoved.containsKey(section)) {
-                Set<String> set = new HashSet<>();
-                sectionToNewsReferencesRemoved.put(section,set);
-            }
-            if (!sectionToOtherReferencesAdded.containsKey(section)) {
-                Set<String> set = new HashSet<>();
-                sectionToOtherReferencesAdded.put(section,set);
-            }
-            if (!sectionToOtherReferencesRemoved.containsKey(section)) {
-                Set<String> set = new HashSet<>();
-                sectionToOtherReferencesRemoved.put(section,set);
-            }
-
-//            if (sectionToContentAdded.get(section).size() > 0 || sectionToContentRemoved.get(section).size() > 0
-//                    || sectionToNewsReferencesAdded.get(section).size() > 0 || sectionToNewsReferencesAdded.get(section).size() > 0
-//                    || sectionToOtherReferencesAdded.get(section).size() > 0 || sectionToOtherReferencesAdded.get(section).size() > 0) {
-//                System.out.println(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
-//                    + revision.timestamp + "\t" + revision.revision_comment + "\t" +  section + "\t" + sectionToContentAdded.get(section)
-//                    + "\t" + sectionToContentRemoved.get(section) + "\t" + sectionToNewsReferencesAdded.get(section)
-//                    + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
-//                        + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" +  revision_string);
-//            }
+            outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
+                    sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
+                    sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
+                    false, revision);
         }
+
+        //check for deleted sections
         for (String section : oldSectionsToNewSections.keySet()){
             if (!newSectionsToOldSections.keySet().contains(section)){
                 //deleted section
+                outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
+                        sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
+                        sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
+                        true, revision);
             }
+        }
+    }
+
+
+    public void outputChanges(String section, Map<String, Set<String>> sectionToContentAdded, Map<String, Set<String>> sectionToContentRemoved,
+                              Map<String, Set<String>> sectionToNewsReferencesAdded, Map<String, Set<String>> sectionToNewsReferencesRemoved,
+                              Map<String, Set<String>> sectionToOtherReferencesAdded, Map<String, Set<String>> sectionToOtherReferencesRemoved,
+                              Boolean deletedSection, WikipediaEntityRevision revision){
+        //add empty set in case that there is no change in this section
+        if (!sectionToContentAdded.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToContentAdded.put(section,set);
+        }
+        if (!sectionToContentRemoved.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToContentRemoved.put(section,set);
+        }
+        if (!sectionToNewsReferencesAdded.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToNewsReferencesAdded.put(section,set);
+        }
+        if (!sectionToNewsReferencesRemoved.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToNewsReferencesRemoved.put(section,set);
+        }
+        if (!sectionToOtherReferencesAdded.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToOtherReferencesAdded.put(section,set);
+        }
+        if (!sectionToOtherReferencesRemoved.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToOtherReferencesRemoved.put(section,set);
+        }
+
+        //create content strings
+        String content_added_string = "[";
+        for (String string : sectionToContentAdded.get(section)){
+            if (content_added_string.equals("[")){
+                content_added_string = content_added_string + string;
+            } else{
+                content_added_string = content_added_string + ";" + string;
+            }
+        }
+        content_added_string = content_added_string + "]";
+
+        String content_removed_string = "[";
+        for (String string : sectionToContentRemoved.get(section)){
+            if (content_removed_string.equals("[")){
+                content_removed_string = content_removed_string + string;
+            } else{
+                content_removed_string = content_removed_string + ";" + string;
+            }
+        }
+        content_removed_string = content_removed_string + "]";
+
+        //output
+        if (sectionToContentAdded.get(section).size() > 0 || sectionToContentRemoved.get(section).size() > 0
+                || sectionToNewsReferencesAdded.get(section).size() > 0 || sectionToNewsReferencesAdded.get(section).size() > 0
+                || sectionToOtherReferencesAdded.get(section).size() > 0 || sectionToOtherReferencesAdded.get(section).size() > 0) {
+
+            String section_string = "";
+            if (deletedSection){
+                section_string = section + " (deleted section)";
+            } else{
+                section_string = section;
+            }
+
+            System.out.println(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
+                    + revision.timestamp + "\t" + revision.revision_comment + "\t" + section_string + "\t" + content_added_string
+                    + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
+                    + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
+                    + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" + revision_string);
+//                fw.write(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
+//                        + revision.timestamp + "\t" + revision.revision_comment + "\t" +  section + "\t" + content_added_string
+//                        + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
+//                        + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
+//                        + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" +  revision_string + "\n");
+//                fw.flush();
         }
     }
 
@@ -283,7 +331,6 @@ public class RevisionReader {
                 Map<String, Set<String>> contentDifferences_similarSections = new HashMap<>();
                 Map<String, Set<String>> newsRefDifferences_similarSections = new HashMap<>();
                 Map<String, Set<String>> otherRefDifferences_similarSections = new HashMap<>();
-                //TODO: also for references (news & other)
 
                 //intersection of all comparison results
                 for (String similarSection : sectionsToSections.get(section)){
@@ -293,31 +340,44 @@ public class RevisionReader {
                     compareSections(section, similarSection, revision, comparedRevision, contentDifferences, newsRefDifferences, otherRefDifferences);
 
                     contentDifferences_similarSections.put(similarSection, contentDifferences.get(section));
+                    newsRefDifferences_similarSections.put(similarSection, newsRefDifferences.get(section));
+                    otherRefDifferences_similarSections.put(similarSection, otherRefDifferences.get(section));
                 }
 
-                Set<String> contentDifferences_intersection = new HashSet<>();
-                String first_section = contentDifferences_similarSections.keySet().iterator().next();
-                for (String difference : contentDifferences_similarSections.get(first_section)){ //pick one random section, check if all other sections contain the same difference
-                    Boolean difference_in_all_sections = true;
-                    for (String involved_section : contentDifferences_similarSections.keySet()){
-                        if (!contentDifferences_similarSections.get(involved_section).contains(difference)) {
-                            difference_in_all_sections = false;
-                            break;
-                        }
-                    }
-                    if (difference_in_all_sections){
-                        contentDifferences_intersection.add(difference);
-                    }
-                }
+                Set<String> contentDifferences_intersection = computeIntersection(contentDifferences_similarSections);
+                Set<String> newsRefDifferences_intersection = computeIntersection(newsRefDifferences_similarSections);
+                Set<String> otherRefDifferences_intersection = computeIntersection(otherRefDifferences_similarSections);
 
                 System.out.println("Section: " + section + " similarSections: " + sectionsToSections.get(section)
-                        + " intersection of differences: " + contentDifferences_intersection + " " + revision_string);
+                        + " contentDifferences: " + contentDifferences_intersection + " "
+                        + " newsRefDifferences: " + newsRefDifferences_intersection + " "
+                        + " otherRefDifferences: " + otherRefDifferences_intersection + " "
+                        + revision_string);
 
                 sectionToContentDifferences.put(section, contentDifferences_intersection);
-//                sectionToNewsReferenceDifferences = null;
-//                sectionToOtherReferenceDifferences = null;
+                sectionToNewsReferenceDifferences.put(section, newsRefDifferences_intersection);
+                sectionToOtherReferenceDifferences.put(section, otherRefDifferences_intersection);
             }
         }
+    }
+
+
+    public Set<String> computeIntersection(Map<String, Set<String>> differences_similarSections){
+        Set<String> differences_intersection = new HashSet<>();
+        String first_section = differences_similarSections.keySet().iterator().next();
+        for (String difference : differences_similarSections.get(first_section)){ //pick one random section, check if all other sections contain the same difference
+            Boolean difference_in_all_sections = true;
+            for (String involved_section : differences_similarSections.keySet()){
+                if (!differences_similarSections.get(involved_section).contains(difference)) {
+                    difference_in_all_sections = false;
+                    break;
+                }
+            }
+            if (difference_in_all_sections){
+                differences_intersection.add(difference);
+            }
+        }
+        return differences_intersection;
     }
 
 
@@ -330,6 +390,12 @@ public class RevisionReader {
 
         //extract references and sentences for both sections
         String section_text = revision.entity.getSectionText(section);
+
+        if (section_text == null){
+            System.out.println("section_text is null");
+            return;
+        }
+
         String compared_section_text = "";
         if (!comparedSection.equals("")){
             compared_section_text = comparedRevision.entity.getSectionText(comparedSection);
@@ -345,11 +411,6 @@ public class RevisionReader {
         Set<String> compared_section_other_urls = new HashSet<>();
         Set<String> section_news_urls = getURLs(section_text, section_other_urls);
         Set<String> compared_section_news_urls = getURLs(compared_section_text, compared_section_other_urls);
-
-//        if (revision.revision_id==617338280){
-            System.out.print("");
-//        }
-
 
         //content differences
         for (String sentence : section_sentences) {
@@ -406,8 +467,6 @@ public class RevisionReader {
 
         for (String candidate_sentence : sentenceSet){
             double jacdis = SimilarityMeasures.computeJaccardDistance(sentence, candidate_sentence);
-
-//            System.out.println("Comparison: " + sentence + " ||| " + candidate_sentence + " || " + jacdis);
 
             if (jacdis > JACCARD_THRESHOLD_SENTENCE && jacdis > mostSimilarSentenceSimilarity) {
                 mostSimilarSentence = candidate_sentence;
@@ -489,11 +548,13 @@ public class RevisionReader {
         text = text.replace("\\n\\n",".");
         text = text.replace("�", "");
         text = text.replaceAll("\\{\\{[0-9]+}}", "");
+        text = text.replaceAll("â€","");
+        text = text.replaceAll("[\\[\\]]","");
 
         for (String sentence : nlp.getDocumentSentences(text)){
+            sentence = sentence.replace("\\n","");
+            sentence = sentence.replace("\n","");
             if (sentence.length() > 3) {
-                sentence = sentence.replace("\\n","");
-                sentence = sentence.replace("\n","");
                 sentence = StringEscapeUtils.unescapeJson(sentence);
                 sentences.add(sentence);
             }
@@ -511,10 +572,12 @@ public class RevisionReader {
         sentence = sentence.replace("\\n", " ");
         sentence = sentence.replaceAll("[\\[\\].:,!?;()\"\'{}|=/<>+*]", " ");
         sentence = sentence.toLowerCase();
+        sentence = sentence.replaceAll("â€","");
 
         String[] sentence_split = sentence.split(" ");
         for (String word : sentence_split) {
             word = word.replaceAll("\\s+", "");
+            word = StringEscapeUtils.unescapeJson(word);
             if (!stopWords.contains(word) && !word.equals("") && word.length() > 1) word_bag.add(word);
         }
 
@@ -528,8 +591,14 @@ public class RevisionReader {
         System.out.println("start");
         System.out.println("user_id" + "\t" + "user_name" + "\t" + "entity_id" + "\t" + "revision_id" + "\t"
                 + "timestamp" + "\t" + "revision_comment" + "\t" +  "section_label" + "\t" + "text_added"
-                + "\t" + "text_removed" + "\t" + "references_added" + "\t" + "references_removed" + "\t" + "URL");
-        rr.readRevisions("C:\\Users\\hube\\bias\\datasets\\Malaysia_Airlines_allRevisions_reversed");
+                + "\t" + "text_removed" + "\t" + "news_references_added" + "\t" + "news_references_removed"
+                + "\t" + "other_references_added" + "\t" + "other_references_removed" + "\t" + "URL");
+        rr.fw.write("user_id" + "\t" + "user_name" + "\t" + "entity_id" + "\t" + "revision_id" + "\t"
+                + "timestamp" + "\t" + "revision_comment" + "\t" +  "section_label" + "\t" + "text_added"
+                + "\t" + "text_removed" + "\t" + "news_references_added" + "\t" + "news_references_removed"
+                + "\t" + "other_references_added" + "\t" + "other_references_removed" + "\t" + "URL" + "\n");
+        rr.fw.flush();
+        rr.readRevisions("C:\\Users\\hube\\bias\\datasets\\revisions_gamergate_part1_reverted");
         System.out.println("finished");
     }
 }
