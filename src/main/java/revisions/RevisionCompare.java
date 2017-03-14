@@ -3,7 +3,6 @@ package revisions;
 import entities.WikipediaEntity;
 import entities.WikipediaEntityRevision;
 import org.apache.commons.lang3.StringEscapeUtils;
-import org.hedera.io.Revision;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -21,137 +20,35 @@ import java.util.*;
 /**
  * Created by hube on 1/20/2017.
  */
-public class RevisionReader {
+public class RevisionCompare {
 
-
-    WikipediaEntityRevision lastRevision = new WikipediaEntityRevision();
-
-    boolean firstRevision = true;
     NLPUtils nlp = new NLPUtils(2);
     Set<String> stopWords = new HashSet<String>();
-    String user_name = "";
     double JACCARD_THRESHOLD_SECTION = 0.1;
     double JACCARD_THRESHOLD_SENTENCE = 0.3;
-    String revision_string;
 
-    Map<String,String> sentences_old_revision = new HashMap<>();
-    Map<String,String> urls_old_revision = new HashMap<>();
 
-    FileWriter fw = new FileWriter("C:\\Users\\hube\\bias\\generated_datasets\\tests");
-
-    public RevisionReader() throws IOException {
-
+    public RevisionCompare(String stop_words_path) throws IOException {
+        stopWords = FileUtils.readIntoSet(stop_words_path, "\n", false);
+        SimilarityMeasures.stop_words = stopWords;
     }
 
 
-    public void readRevisions(String revisionsFile) throws Exception {
+    public void compareWithOldRevision(WikipediaEntityRevision revision, WikipediaEntityRevision lastRevision, Boolean firstRevision, FileWriter fw, String user_name) throws IOException {
 
-        BufferedReader reader = new BufferedReader(
-                new InputStreamReader(
-                        new FileInputStream(revisionsFile), "UTF8"));
+        if (firstRevision){
+            WikipediaEntity emptyEntity = new WikipediaEntity();
+            emptyEntity.setSplitSections(true);
 
-        stopWords = FileUtils.readIntoSet("C:\\Users\\hube\\bias\\datasets\\stop_words", "\n", false);
-        SimilarityMeasures.stop_words = stopWords;
-
-        String line = "";
-        String revision_id = "";
-        String user_id = "";
-        String revision_comment = "";
-        String timestamp = "";
-        String entity_title = "";
-        String entity_id = "";
-
-        while ((line = reader.readLine()) != null) {
-
-            WikipediaEntityRevision revision = new WikipediaEntityRevision();
-
-            line = StringEscapeUtils.unescapeJson(line).trim();
-            //read xml
-            Document doc = FileUtils.readXMLDocumentFromString(line);
-            if (doc == null) {
-                System.out.println("Document was read as null!");
-                System.out.println(line);
-                continue;
-            }
-            Element root = doc.getDocumentElement();
-
-            NodeList nList = root.getElementsByTagName("query");
-            Node node = nList.item(0);
-            Element element = (Element) node;
-
-            nList = element.getElementsByTagName("pages");
-            node = nList.item(0);
-            element = (Element) node;
-
-            nList = element.getElementsByTagName("page");
-            node = nList.item(0);
-            element = (Element) node;
-            entity_id = element.getAttribute("pageid");
-            entity_title = element.getAttribute("title");
-
-            nList = element.getElementsByTagName("revisions");
-            node = nList.item(0);
-            element = (Element) node;
-
-            nList = element.getElementsByTagName("rev");
-            node = nList.item(0);
-            element = (Element) node;
-            revision_id = element.getAttribute("revid");
-            user_id = element.getAttribute("userid");
-            user_name = element.getAttribute("user");
-            revision_comment = element.getAttribute("comment");
-            timestamp = element.getAttribute("timestamp");
-
-            WikipediaEntity entity = new WikipediaEntity();
-
-            entity.setTitle(entity_title);
-            entity.setCleanReferences(true);
-            entity.setExtractReferences(false);
-            entity.setMainSectionsOnly(false);
-            entity.setSplitSections(true);
-            entity.setContent(element.getTextContent());
-
-            //create revision
-            revision.revision_id = Long.parseLong(revision_id);
-            try {
-                revision.user_id = Long.parseLong(user_id);
-            } catch(NumberFormatException e){
-                continue;
-            }
-            revision.revision_comment = revision_comment;
-
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-            Date date = formatter.parse(timestamp);
-
-            revision.timestamp = (date.getTime());
-            revision.entity_id = Long.parseLong(entity_id);
-            revision.entity = entity;
-
-            if (firstRevision){
-                WikipediaEntity emptyEntity = new WikipediaEntity();
-                entity.setSplitSections(true);
-
-                //set content to empty
-                emptyEntity.setContent("{{Infobox aircraft occurrence\n" +
-                        "}}\n" +
-                        "==References==\n" +
-                        "{{reflist}}");
-                lastRevision.entity = emptyEntity;
-            }
-
-            compareWithOldRevision(revision);
-
-            if (firstRevision) firstRevision = false;
-
-            //current revision becomes last revision
-            lastRevision = revision;
+            //set content to empty
+            emptyEntity.setContent("{{Infobox aircraft occurrence\n" +
+                    "}}\n" +
+                    "==References==\n" +
+                    "{{reflist}}");
+            lastRevision.entity = emptyEntity;
         }
 
-    }
-
-
-    public void compareWithOldRevision(WikipediaEntityRevision revision) throws IOException {
-        revision_string = "https://en.wikipedia.org/w/index.php?diff=" + revision.revision_id
+        String revision_string = "https://en.wikipedia.org/w/index.php?diff=" + revision.revision_id
                 + "&oldid=" + lastRevision.revision_id;
 
         //map old section to new section, identify added and removed sections, result: section mappings
@@ -177,7 +74,7 @@ public class RevisionReader {
             outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
                     sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
                     sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-                    false, revision);
+                    false, revision, fw, user_name, revision_string);
         }
 
         //check for deleted sections
@@ -187,7 +84,7 @@ public class RevisionReader {
                 outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
                         sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
                         sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-                        true, revision);
+                        true, revision, fw, user_name, revision_string);
             }
         }
     }
@@ -196,7 +93,7 @@ public class RevisionReader {
     public void outputChanges(String section, Map<String, Set<String>> sectionToContentAdded, Map<String, Set<String>> sectionToContentRemoved,
                               Map<String, Set<String>> sectionToNewsReferencesAdded, Map<String, Set<String>> sectionToNewsReferencesRemoved,
                               Map<String, Set<String>> sectionToOtherReferencesAdded, Map<String, Set<String>> sectionToOtherReferencesRemoved,
-                              Boolean deletedSection, WikipediaEntityRevision revision){
+                              Boolean deletedSection, WikipediaEntityRevision revision, FileWriter fw, String user_name, String revision_string) throws IOException {
         //add empty set in case that there is no change in this section
         if (!sectionToContentAdded.containsKey(section)) {
             Set<String> set = new HashSet<>();
@@ -261,12 +158,12 @@ public class RevisionReader {
                     + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
                     + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
                     + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" + revision_string);
-//                fw.write(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
-//                        + revision.timestamp + "\t" + revision.revision_comment + "\t" +  section + "\t" + content_added_string
-//                        + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
-//                        + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
-//                        + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" +  revision_string + "\n");
-//                fw.flush();
+                fw.write(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
+                        + revision.timestamp + "\t" + revision.revision_comment + "\t" +  section + "\t" + content_added_string
+                        + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
+                        + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
+                        + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" +  revision_string + "\n");
+                fw.flush();
         }
     }
 
@@ -326,7 +223,7 @@ public class RevisionReader {
             //multiple sections to compare
             if (sectionsToSections.get(section).size() > 1){
 
-                System.out.println("Section: " + section + " mapped to: " + sectionsToSections.get(section) + " " + revision_string);
+//                System.out.println("Section: " + section + " mapped to: " + sectionsToSections.get(section) + " " + revision_string);
 
                 Map<String, Set<String>> contentDifferences_similarSections = new HashMap<>();
                 Map<String, Set<String>> newsRefDifferences_similarSections = new HashMap<>();
@@ -348,11 +245,11 @@ public class RevisionReader {
                 Set<String> newsRefDifferences_intersection = computeIntersection(newsRefDifferences_similarSections);
                 Set<String> otherRefDifferences_intersection = computeIntersection(otherRefDifferences_similarSections);
 
-                System.out.println("Section: " + section + " similarSections: " + sectionsToSections.get(section)
-                        + " contentDifferences: " + contentDifferences_intersection + " "
-                        + " newsRefDifferences: " + newsRefDifferences_intersection + " "
-                        + " otherRefDifferences: " + otherRefDifferences_intersection + " "
-                        + revision_string);
+//                System.out.println("Section: " + section + " similarSections: " + sectionsToSections.get(section)
+//                        + " contentDifferences: " + contentDifferences_intersection + " "
+//                        + " newsRefDifferences: " + newsRefDifferences_intersection + " "
+//                        + " otherRefDifferences: " + otherRefDifferences_intersection + " "
+//                        + revision_string);
 
                 sectionToContentDifferences.put(section, contentDifferences_intersection);
                 sectionToNewsReferenceDifferences.put(section, newsRefDifferences_intersection);
@@ -582,24 +479,6 @@ public class RevisionReader {
         }
 
         return word_bag;
-    }
-
-
-    public static void main(String[] args) throws Exception {
-        RevisionReader rr = new RevisionReader();
-
-        System.out.println("start");
-        System.out.println("user_id" + "\t" + "user_name" + "\t" + "entity_id" + "\t" + "revision_id" + "\t"
-                + "timestamp" + "\t" + "revision_comment" + "\t" +  "section_label" + "\t" + "text_added"
-                + "\t" + "text_removed" + "\t" + "news_references_added" + "\t" + "news_references_removed"
-                + "\t" + "other_references_added" + "\t" + "other_references_removed" + "\t" + "URL");
-        rr.fw.write("user_id" + "\t" + "user_name" + "\t" + "entity_id" + "\t" + "revision_id" + "\t"
-                + "timestamp" + "\t" + "revision_comment" + "\t" +  "section_label" + "\t" + "text_added"
-                + "\t" + "text_removed" + "\t" + "news_references_added" + "\t" + "news_references_removed"
-                + "\t" + "other_references_added" + "\t" + "other_references_removed" + "\t" + "URL" + "\n");
-        rr.fw.flush();
-        rr.readRevisions("C:\\Users\\hube\\bias\\datasets\\revisions_gamergate_part1_reverted");
-        System.out.println("finished");
     }
 }
 
