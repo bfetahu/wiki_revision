@@ -3,6 +3,7 @@ package revisions;
 import entities.WikiSection;
 import entities.WikipediaEntity;
 import entities.WikipediaEntityRevision;
+import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import utils.NLPUtils;
 import utils.SimilarityMeasures;
@@ -46,8 +47,8 @@ public class RevisionCompare {
             lastRevision.entity = emptyEntity;
         }
 
-//        String revision_string = "https://en.wikipedia.org/w/index.php?diff=" + revision.revision_id
-//                + "&oldid=" + lastRevision.revision_id;
+        String revision_string = "https://en.wikipedia.org/w/index.php?diff=" + revision.revision_id
+                + "&oldid=" + lastRevision.revision_id;
 
         //map old section to new section, identify added and removed sections, result: section mappings
         Map<String, Set<String>> oldSectionsToNewSections = new HashMap<>();
@@ -67,85 +68,90 @@ public class RevisionCompare {
         computeContentDifferences(newSectionsToOldSections, revision, lastRevision, sectionToContentAdded, sectionToNewsReferencesAdded, sectionToOtherReferencesAdded);
         computeContentDifferences(oldSectionsToNewSections, lastRevision, revision, sectionToContentRemoved, sectionToNewsReferencesRemoved, sectionToOtherReferencesRemoved);
 
-        /**
-         * TODO: Chrissy, define the dataset structure and output the computed differences in that format.
-         * DO NOT FORGET: Add a newline at the end of everything.
-         */
-        return "";
+        String output_string = "";
 
-//        //output changes in all sections
-//        for (String section : newSectionsToOldSections.keySet()){
-//            outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
-//                    sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
-//                    sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-//                    false, revision, fw, user_name, revision_string);
-//        }
-//
-//        //check for deleted sections
-//        for (String section : oldSectionsToNewSections.keySet()){
-//            if (!newSectionsToOldSections.keySet().contains(section)){
-//                //deleted section
-//                outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
-//                        sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
-//                        sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-//                        true, revision, fw, user_name, revision_string);
-//            }
-//        }
+        //output changes in all sections
+        for (String section : newSectionsToOldSections.keySet()){
+            output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
+                    sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
+                    sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
+                    false, revision) + "\n";
+        }
+
+        //check for deleted sections
+        for (String section : oldSectionsToNewSections.keySet()){
+            if (!newSectionsToOldSections.keySet().contains(section)){
+                //deleted section
+                output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
+                        sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
+                        sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
+                        true, revision) + "\n";
+            }
+        }
+
+        output_string = output_string + revision_string + "\n";
+
+        return output_string;
     }
 
 
-    public void outputChanges(String section, Map<String, Set<String>> sectionToContentAdded, Map<String, Set<String>> sectionToContentRemoved,
-                              Map<String, Set<String>> sectionToNewsReferencesAdded, Map<String, Set<String>> sectionToNewsReferencesRemoved,
-                              Map<String, Set<String>> sectionToOtherReferencesAdded, Map<String, Set<String>> sectionToOtherReferencesRemoved,
-                              Boolean deletedSection, WikipediaEntityRevision revision, FileWriter fw, String user_name, String revision_string) throws IOException {
-        //add empty set in case that there is no change in this section
-        if (!sectionToContentAdded.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToContentAdded.put(section, set);
-        }
-        if (!sectionToContentRemoved.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToContentRemoved.put(section, set);
-        }
-        if (!sectionToNewsReferencesAdded.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToNewsReferencesAdded.put(section, set);
-        }
-        if (!sectionToNewsReferencesRemoved.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToNewsReferencesRemoved.put(section, set);
-        }
-        if (!sectionToOtherReferencesAdded.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToOtherReferencesAdded.put(section, set);
-        }
-        if (!sectionToOtherReferencesRemoved.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToOtherReferencesRemoved.put(section, set);
-        }
+    public String outputChanges(String section,
+                                Map<String, List<Map.Entry<String, String>>> sectionToContentAdded,
+                                Map<String, List<Map.Entry<String, String>>> sectionToContentRemoved,
+                                Map<String, Set<String>> sectionToNewsReferencesAdded,
+                                Map<String, Set<String>> sectionToNewsReferencesRemoved,
+                                Map<String, Set<String>> sectionToOtherReferencesAdded,
+                                Map<String, Set<String>> sectionToOtherReferencesRemoved,
+                              boolean deletedSection, WikipediaEntityRevision revision) throws IOException {
+
+        String output_for_section = "";
 
         //create content strings
-        String content_added_string = "[";
-        for (String string : sectionToContentAdded.get(section)) {
-            if (content_added_string.equals("[")) {
-                content_added_string = content_added_string + string;
-            } else {
-                content_added_string = content_added_string + ";" + string;
-            }
-        }
-        content_added_string = content_added_string + "]";
 
-        String content_removed_string = "[";
-        for (String string : sectionToContentRemoved.get(section)) {
-            if (content_removed_string.equals("[")) {
-                content_removed_string = content_removed_string + string;
-            } else {
-                content_removed_string = content_removed_string + ";" + string;
-            }
-        }
-        content_removed_string = content_removed_string + "]";
+        String content_added_string = "";
+        if (sectionToContentAdded.containsKey(section)) {
+            content_added_string = "[";
+            for (Map.Entry<String, String> sentence_mapping : sectionToContentAdded.get(section)) {
+                String sentence = sentence_mapping.getKey();
+                String similar_sentence = "";
+                try {
+                    similar_sentence = sentence_mapping.getValue();
+                } catch (NullPointerException e) {
 
-        //output
+                }
+                if (content_added_string.equals("[")) {
+                    content_added_string = content_added_string + similar_sentence + " --> " + sentence;
+                } else {
+                    content_added_string = content_added_string + ";" + similar_sentence + " --> " + sentence;
+                }
+            }
+            content_added_string = content_added_string + "]";
+        } else{
+            content_added_string = "[]";
+        }
+
+        String content_removed_string = "";
+        if (sectionToContentRemoved.containsKey(section)) {
+            content_removed_string = "[";
+            for (Map.Entry<String, String> sentence_mapping : sectionToContentRemoved.get(section)) {
+                String sentence = sentence_mapping.getKey();
+                String similar_sentence = "";
+                try {
+                    similar_sentence = sentence_mapping.getValue();
+                } catch (NullPointerException e) {
+
+                }
+                if (content_removed_string.equals("[")) {
+                    content_removed_string = content_removed_string + similar_sentence + " --> " + sentence;
+                } else {
+                    content_removed_string = content_removed_string + ";" + similar_sentence + " --> " + sentence;
+                }
+            }
+            content_removed_string = content_removed_string + "]";
+        } else{
+            content_removed_string = "[]";
+        }
+
         if (sectionToContentAdded.get(section).size() > 0 || sectionToContentRemoved.get(section).size() > 0
                 || sectionToNewsReferencesAdded.get(section).size() > 0 || sectionToNewsReferencesAdded.get(section).size() > 0
                 || sectionToOtherReferencesAdded.get(section).size() > 0 || sectionToOtherReferencesAdded.get(section).size() > 0) {
@@ -157,18 +163,13 @@ public class RevisionCompare {
                 section_string = section;
             }
 
-            System.out.println(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
+            output_for_section = revision.user_id + "\t" + revision.user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
                     + revision.timestamp + "\t" + revision.revision_comment + "\t" + section_string + "\t" + content_added_string
                     + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
                     + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
-                    + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" + revision_string);
-            fw.write(revision.user_id + "\t" + user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
-                    + revision.timestamp + "\t" + revision.revision_comment + "\t" + section + "\t" + content_added_string
-                    + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
-                    + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
-                    + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" + revision_string + "\n");
-            fw.flush();
+                    + "\t" + sectionToOtherReferencesRemoved.get(section);
         }
+        return output_for_section;
     }
 
 
