@@ -75,7 +75,7 @@ public class RevisionCompare {
             output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
                     sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
                     sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-                    false, revision) + "\n";
+                    false, revision, revision_string);
         }
 
         //check for deleted sections
@@ -85,11 +85,9 @@ public class RevisionCompare {
                 output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
                         sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
                         sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-                        true, revision) + "\n";
+                        true, revision, revision_string);
             }
         }
-
-        output_string = output_string + revision_string + "\n";
 
         return output_string;
     }
@@ -102,7 +100,7 @@ public class RevisionCompare {
                                 Map<String, Set<String>> sectionToNewsReferencesRemoved,
                                 Map<String, Set<String>> sectionToOtherReferencesAdded,
                                 Map<String, Set<String>> sectionToOtherReferencesRemoved,
-                              boolean deletedSection, WikipediaEntityRevision revision) throws IOException {
+                              boolean deletedSection, WikipediaEntityRevision revision, String revision_string) throws IOException {
 
         String output_for_section = "";
 
@@ -152,7 +150,24 @@ public class RevisionCompare {
             content_removed_string = "[]";
         }
 
-        if (sectionToContentAdded.get(section).size() > 0 || sectionToContentRemoved.get(section).size() > 0
+        if (!sectionToNewsReferencesAdded.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToNewsReferencesAdded.put(section,set);
+        }
+        if (!sectionToNewsReferencesRemoved.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToNewsReferencesRemoved.put(section,set);
+        }
+        if (!sectionToOtherReferencesAdded.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToOtherReferencesAdded.put(section,set);
+        }
+        if (!sectionToOtherReferencesRemoved.containsKey(section)) {
+            Set<String> set = new HashSet<>();
+            sectionToOtherReferencesRemoved.put(section,set);
+        }
+
+        if (content_added_string.length() > 2 || content_removed_string.length() > 2
                 || sectionToNewsReferencesAdded.get(section).size() > 0 || sectionToNewsReferencesAdded.get(section).size() > 0
                 || sectionToOtherReferencesAdded.get(section).size() > 0 || sectionToOtherReferencesAdded.get(section).size() > 0) {
 
@@ -167,7 +182,7 @@ public class RevisionCompare {
                     + revision.timestamp + "\t" + revision.revision_comment + "\t" + section_string + "\t" + content_added_string
                     + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
                     + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
-                    + "\t" + sectionToOtherReferencesRemoved.get(section);
+                    + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" + revision_string + "\n";
         }
         return output_for_section;
     }
@@ -314,15 +329,24 @@ public class RevisionCompare {
         Set<String> newsReferenceDifferences = new HashSet<>();
         Set<String> otherReferenceDifferences = new HashSet<>();
 
+        WikiSection wiki_section = new WikiSection();
+        WikiSection wiki_section_compare = new WikiSection();
+        List<String> section_sentences = new ArrayList<>();
+        List<String> compared_section_sentences = new ArrayList<>();
+        Map<String, Set<String>> urls = new HashMap<>();
+        Map<String, Set<String>> compared_urls = new HashMap<>();
+
         //extract references and sentences for both sections
-        WikiSection wiki_section = revision.entity.getSection(section);
-        WikiSection wiki_section_compare = comparedRevision.entity.getSection(comparedSection);
-
-        List<String> section_sentences = revision.entity.getSection(section).sentences;
-        List<String> compared_section_sentences = comparedRevision.entity.getSection(section).sentences;
-
-        Map<String, Set<String>> urls = getURLs(wiki_section.getSectionCitations());
-        Map<String, Set<String>> compared_urls = getURLs(wiki_section_compare.getSectionCitations());
+        if (!section.isEmpty()){
+            wiki_section = revision.entity.getSection(section);
+            section_sentences = wiki_section.sentences;
+            urls = getURLs(wiki_section.getSectionCitations());
+        }
+        if (!comparedSection.isEmpty()){
+            wiki_section_compare = comparedRevision.entity.getSection(comparedSection);
+            compared_section_sentences = wiki_section_compare.sentences;
+            compared_urls = getURLs(wiki_section_compare.getSectionCitations());
+        }
 
         //content differences
         for (String sentence : section_sentences) {
@@ -389,7 +413,7 @@ public class RevisionCompare {
     public Map<String, Set<String>> getURLs(Map<Integer, Map<String, String>> references) {
         Map<String, Set<String>> urls = new HashMap<>();
         for (int ref : references.keySet()) {
-            if (references.get(ref).containsKey("url")) {
+            if (!references.get(ref).containsKey("url")) {
                 continue;
             }
             String type = references.get(ref).containsKey("type") ? references.get(ref).get("type") : "null";

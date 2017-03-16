@@ -74,7 +74,7 @@
         <dependency>
             <groupId>de.l3s.fetahu</groupId>
             <artifactId>utils</artifactId>
-            <version>1.2</version>
+            <version>1.16</version>
             <exclusions>
                 <exclusion>
                     <groupId>mallet</groupId>
