@@ -1,5 +1,6 @@
 package revisions;
 
+import entities.WikiSection;
 import entities.WikipediaEntity;
 import entities.WikipediaEntityRevision;
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -30,7 +31,7 @@ public class RevisionReader_Local {
         this.revision_folder = new File (revision_folder);
         this.output_folder = new File(output_folder);
 
-        RevisionCompare rc = new RevisionCompare(stop_words_file);
+        rc = new RevisionCompare(stop_words_file);
     }
 
 
@@ -82,13 +83,6 @@ public class RevisionReader_Local {
                 entity_id = element.getAttribute("pageid");
                 entity_title = element.getAttribute("title");
 
-                FileWriter fw = new FileWriter("");
-                try {
-                    fw = new FileWriter(output_folder + "/" + entity_title);
-                } catch (FileNotFoundException e){
-                    System.out.println("Could not write results for entity: " + entity_title);
-                }
-
                 nList = element.getElementsByTagName("revisions");
                 node = nList.item(0);
                 element = (Element) node;
@@ -106,18 +100,17 @@ public class RevisionReader_Local {
 
                 entity.setTitle(entity_title);
                 entity.setCleanReferences(true);
-                entity.setExtractReferences(false);
+                entity.setExtractReferences(true);
+                entity.setExtractBrokenReferences(true); //?
                 entity.setMainSectionsOnly(false);
                 entity.setSplitSections(true);
                 entity.setContent(element.getTextContent());
 
                 //create revision
                 revision.revision_id = Long.parseLong(revision_id);
-                try {
-                    revision.user_id = Long.parseLong(user_id);
-                } catch (NumberFormatException e) {
-                    continue;
-                }
+                revision.user_id = user_id;
+                revision.user_name = user_name;
+
                 revision.revision_comment = revision_comment;
 
                 SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -127,7 +120,17 @@ public class RevisionReader_Local {
                 revision.entity_id = Long.parseLong(entity_id);
                 revision.entity = entity;
 
-                rc.compareWithOldRevision(revision, lastRevision, firstRevision, fw, user_name);
+                //extract the section sentences.
+                for (String section_key : revision.entity.getSectionKeys()) {
+                    WikiSection section = revision.entity.getSection(section_key);
+                    section.sentences = rc.getSentences(section.section_text);
+                    section.setSectionCitations(revision.entity.getEntityCitations());
+                }
+
+                String output = rc.compareWithOldRevision(revision, lastRevision, firstRevision);
+                if (!output.equals("")){
+                    System.out.print(output);
+                }
 
                 if (firstRevision) firstRevision = false;
 
@@ -141,7 +144,10 @@ public class RevisionReader_Local {
 
     public static void main(String[] args) throws Exception {
 
-        RevisionReader_Local rr_l = new RevisionReader_Local("", "", "");
+        RevisionReader_Local rr_l = new RevisionReader_Local(
+                "C:\\Users\\hube\\bias\\datasets\\test_datasets",
+                "C:\\Users\\hube\\bias\\generated_datasets\\local_test_outputs",
+                "C:\\Users\\hube\\bias\\datasets\\stop_words");
 
 //        System.out.println("start");
 //        System.out.println("user_id" + "\t" + "user_name" + "\t" + "entity_id" + "\t" + "revision_id" + "\t"
@@ -154,7 +160,7 @@ public class RevisionReader_Local {
 //                + "\t" + "other_references_added" + "\t" + "other_references_removed" + "\t" + "URL" + "\n");
 //        rr.fw.flush();
 
-        rr_l.readRevisions_local(); //revision_folder, output_folder, stop_words_file
+        rr_l.readRevisions_local();
     }
 
 }

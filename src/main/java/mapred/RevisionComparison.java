@@ -33,7 +33,7 @@ import java.util.TreeMap;
  */
 public class RevisionComparison extends Configured implements Tool {
     public static void main(String[] args) throws Exception {
-        ToolRunner.run(new RevisionExtractor(), args);
+        ToolRunner.run(new RevisionComparison(), args);
     }
 
     @Override
@@ -57,8 +57,8 @@ public class RevisionComparison extends Configured implements Tool {
         Job job = new Job(conf);
         job.setNumReduceTasks(num_reducers);
 
-        job.setJarByClass(RevisionExtractor.class);
-        job.setJobName(RevisionExtractor.class.getName() + "-" + System.currentTimeMillis());
+        job.setJarByClass(RevisionComparison.class);
+        job.setJobName(RevisionComparison.class.getName() + "-" + System.currentTimeMillis());
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
@@ -101,14 +101,14 @@ public class RevisionComparison extends Configured implements Tool {
                 for (String section_key : revision.entity.getSectionKeys()) {
                     WikiSection section = revision.entity.getSection(section_key);
                     section.sentences = rc.getSentences(section.section_text);
-                    section.setCitations(revision.entity.getEntityCitations());
+                    section.setSectionCitations(revision.entity.getEntityCitations());
                 }
 
                 //return the revision difference data ending with a "\n"
                 if (prev == null) {
-                    revision_difference_data.add(rc.compareWithOldRevision(prev, null, true));
+                    revision_difference_data.add(rc.compareWithOldRevision(revision, null, true));
                 } else {
-                    revision_difference_data.add(rc.compareWithOldRevision(prev, null, true));
+                    revision_difference_data.add(rc.compareWithOldRevision(revision, prev, false));
                 }
                 prev = revision;
             }
@@ -160,7 +160,7 @@ public class RevisionComparison extends Configured implements Tool {
                 WikipediaEntity entity = new WikipediaEntity();
                 entity.setTitle(title);
                 entity.setCleanReferences(true);
-                entity.setExtractReferences(false);
+                entity.setExtractReferences(true);
                 entity.setMainSectionsOnly(false);
                 entity.setSplitSections(true);
                 entity.setContent(text);
