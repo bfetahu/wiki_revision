@@ -33,6 +33,8 @@
             <includes>
                 <include>**/*</include>
             </includes>
+
+
         </fileSet>
     </fileSets>
 </assembly>

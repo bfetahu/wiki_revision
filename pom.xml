@@ -42,7 +42,7 @@
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
                     <descriptors>
-                        <descriptor>wiki_for_hadoop.xml</descriptor>
+                        <descriptor>wiki_hadoop.xml</descriptor>
                     </descriptors>
                 </configuration>
             </plugin>
@@ -74,7 +74,7 @@
         <dependency>
             <groupId>de.l3s.fetahu</groupId>
             <artifactId>utils</artifactId>
-            <version>1.2</version>
+            <version>1.16</version>
             <exclusions>
                 <exclusion>
                     <groupId>mallet</groupId>
