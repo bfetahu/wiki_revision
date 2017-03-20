@@ -101,6 +101,7 @@ public class RevisionReader_Local {
                 entity.setTitle(entity_title);
                 entity.setCleanReferences(true);
                 entity.setExtractReferences(true);
+                entity.setExtractBrokenReferences(true); //?
                 entity.setMainSectionsOnly(false);
                 entity.setSplitSections(true);
                 entity.setContent(element.getTextContent());

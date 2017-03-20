@@ -117,10 +117,13 @@ public class RevisionCompare {
                 } catch (NullPointerException e) {
 
                 }
-                if (content_added_string.equals("[")) {
-                    content_added_string = content_added_string + similar_sentence + " --> " + sentence;
+                if (!content_added_string.equals("[")) {
+                    content_added_string = content_added_string + ";";
+                }
+                if (similar_sentence == null) {
+                    content_added_string = content_added_string + sentence;
                 } else {
-                    content_added_string = content_added_string + ";" + similar_sentence + " --> " + sentence;
+                    content_added_string = content_added_string + similar_sentence + " --> " + sentence;
                 }
             }
             content_added_string = content_added_string + "]";
@@ -139,10 +142,11 @@ public class RevisionCompare {
                 } catch (NullPointerException e) {
 
                 }
-                if (content_removed_string.equals("[")) {
-                    content_removed_string = content_removed_string + similar_sentence + " --> " + sentence;
-                } else {
-                    content_removed_string = content_removed_string + ";" + similar_sentence + " --> " + sentence;
+                if (!content_removed_string.equals("[") && similar_sentence == null) {
+                    content_removed_string = content_removed_string + ";";
+                }
+                if (similar_sentence == null){
+                    content_removed_string = content_removed_string + sentence;
                 }
             }
             content_removed_string = content_removed_string + "]";
@@ -418,6 +422,7 @@ public class RevisionCompare {
             }
             String type = references.get(ref).containsKey("type") ? references.get(ref).get("type") : "null";
             String url = references.get(ref).get("url");
+            url = url.toLowerCase();
 //
 //            url = url.replace("}}", "");
 //            url = url.replace("url=", "");
@@ -484,25 +489,25 @@ public class RevisionCompare {
     }
 
 
-    public Set<String> genereateWordBag(String sentence) {
-
-        Set<String> word_bag = new HashSet<>();
-
-        //clean
-        sentence = sentence.replace("\n", " ");
-        sentence = sentence.replace("\\n", " ");
-        sentence = sentence.replaceAll("[\\[\\].:,!?;()\"\'{}|=/<>+*]", " ");
-        sentence = sentence.toLowerCase();
-        sentence = sentence.replaceAll("â€", "");
-
-        String[] sentence_split = sentence.split(" ");
-        for (String word : sentence_split) {
-            word = word.replaceAll("\\s+", "");
-            word = StringEscapeUtils.unescapeJson(word);
-            if (!stopWords.contains(word) && !word.equals("") && word.length() > 1) word_bag.add(word);
-        }
-
-        return word_bag;
-    }
+//    public Set<String> genereateWordBag(String sentence) {
+//
+//        Set<String> word_bag = new HashSet<>();
+//
+//        //clean
+//        sentence = sentence.replace("\n", " ");
+//        sentence = sentence.replace("\\n", " ");
+//        sentence = sentence.replaceAll("[\\[\\].:,!?;()\"\'{}|=/<>+*]", " ");
+//        sentence = sentence.toLowerCase();
+//        sentence = sentence.replaceAll("â€", "");
+//
+//        String[] sentence_split = sentence.split(" ");
+//        for (String word : sentence_split) {
+//            word = word.replaceAll("\\s+", "");
+//            word = StringEscapeUtils.unescapeJson(word);
+//            if (!stopWords.contains(word) && !word.equals("") && word.length() > 1) word_bag.add(word);
+//        }
+//
+//        return word_bag;
+//    }
 }
 

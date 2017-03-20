@@ -33,7 +33,7 @@ import java.util.TreeMap;
  */
 public class RevisionComparison extends Configured implements Tool {
     public static void main(String[] args) throws Exception {
-        ToolRunner.run(new RevisionExtractor(), args);
+        ToolRunner.run(new RevisionComparison(), args);
     }
 
     @Override
@@ -57,8 +57,8 @@ public class RevisionComparison extends Configured implements Tool {
         Job job = new Job(conf);
         job.setNumReduceTasks(num_reducers);
 
-        job.setJarByClass(RevisionExtractor.class);
-        job.setJobName(RevisionExtractor.class.getName() + "-" + System.currentTimeMillis());
+        job.setJarByClass(RevisionComparison.class);
+        job.setJobName(RevisionComparison.class.getName() + "-" + System.currentTimeMillis());
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
