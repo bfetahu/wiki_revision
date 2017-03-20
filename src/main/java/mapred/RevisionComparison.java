@@ -151,7 +151,7 @@ public class RevisionComparison extends Configured implements Tool {
 
             if (revision_json.has("timestamp")) {
                 WikipediaEntityRevision revision = new WikipediaEntityRevision();
-                revision.timestamp = revision_json.getLong("timestamp");
+//                revision.timestamp = revision_json.getLong("timestamp");
                 revision.user_id = user_id;
                 revision.revision_id = revision_json.getLong("id");
                 revision.user_id = user_id;
