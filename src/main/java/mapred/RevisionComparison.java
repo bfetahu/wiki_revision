@@ -107,7 +107,7 @@ public class RevisionComparison extends Configured implements Tool {
 
                 //return the revision difference data ending with a "\n"
                 if (prev == null) {
-                    revision_difference_data.add(rc.compareWithOldRevision(revision, null, true));
+                    revision_difference_data.add(rc.compareWithOldRevision(revision, new WikipediaEntityRevision(), true));
                 } else {
                     revision_difference_data.add(rc.compareWithOldRevision(revision, prev, false));
                 }
