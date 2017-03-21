@@ -64,7 +64,7 @@ public class RevisionComparison extends Configured implements Tool {
         job.setOutputValueClass(Text.class);
 
         job.setMapOutputKeyClass(Text.class);
-        job.setMapOutputValueClass(WikipediaEntityRevision.class);
+        job.setMapOutputValueClass(Text.class);
 
         job.setMapperClass(WikiRevisionFilterMapper.class);
         job.setReducerClass(WikiRevisionFilterReducer.class);
@@ -83,12 +83,13 @@ public class RevisionComparison extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiRevisionFilterReducer extends Reducer<Text, WikipediaEntityRevision, Text, Text> {
+    public static class WikiRevisionFilterReducer extends Reducer<Text, Text, Text, Text> {
         @Override
-        protected void reduce(Text key, Iterable<WikipediaEntityRevision> values, Context context) throws IOException, InterruptedException {
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             Map<Long, WikipediaEntityRevision> sorted_revisions = new TreeMap<>();
-            for (WikipediaEntityRevision value : values) {
-                sorted_revisions.put(value.revision_id, value);
+            for (Text value : values) {
+                WikipediaEntityRevision revision = parseEntity(value.toString());
+                sorted_revisions.put(revision.revision_id, revision);
             }
 
             RevisionCompare rc = new RevisionCompare(context.getConfiguration().get("stop_words"));
@@ -131,43 +132,53 @@ public class RevisionComparison extends Configured implements Tool {
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, WikipediaEntityRevision> {
+    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, Text> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
             JSONObject revision_json = entity_json.getJSONObject("revision");
-            JSONObject contributor_json = revision_json.getJSONObject("contributor");
-            JSONObject text_json = revision_json.getJSONObject("text");
             //get the child nodes
-            String title = "", user_id = "", user = "", text = "";
+            String title = "";
             title = entity_json.has("title") ? entity_json.get("title").toString() : "";
 
-            user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
-            user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
-            user = contributor_json != null && contributor_json.has("username") ? contributor_json.get("username").toString() : "";
-
-            text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
-
-
             if (revision_json.has("timestamp")) {
-                WikipediaEntityRevision revision = new WikipediaEntityRevision();
-//                revision.timestamp = revision_json.getLong("timestamp");
-                revision.user_id = user_id;
-                revision.revision_id = revision_json.getLong("id");
-                revision.user_id = user_id;
-                revision.user_name = user;
-
-                WikipediaEntity entity = new WikipediaEntity();
-                entity.setTitle(title);
-                entity.setCleanReferences(true);
-                entity.setExtractReferences(true);
-                entity.setMainSectionsOnly(false);
-                entity.setSplitSections(true);
-                entity.setContent(text);
-                revision.entity = entity;
-
-                context.write(new Text(title), revision);
+                context.write(new Text(title), value);
             }
         }
+    }
+
+    public static WikipediaEntityRevision parseEntity(String value) {
+        JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
+        JSONObject revision_json = entity_json.getJSONObject("revision");
+        JSONObject contributor_json = revision_json.getJSONObject("contributor");
+        JSONObject text_json = revision_json.getJSONObject("text");
+        //get the child nodes
+        String title = "", user_id = "", user = "", text = "";
+        title = entity_json.has("title") ? entity_json.get("title").toString() : "";
+
+        user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
+        user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
+        user = contributor_json != null && contributor_json.has("username") ? contributor_json.get("username").toString() : "";
+
+        text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
+
+
+        WikipediaEntityRevision revision = new WikipediaEntityRevision();
+        revision.user_id = user_id;
+        revision.revision_id = revision_json.getLong("id");
+        revision.user_id = user_id;
+        revision.user_name = user;
+
+        WikipediaEntity entity = new WikipediaEntity();
+        entity.setTitle(title);
+        entity.setCleanReferences(true);
+        entity.setExtractReferences(true);
+        entity.setMainSectionsOnly(false);
+        entity.setSplitSections(true);
+        entity.setContent(text);
+        revision.entity = entity;
+
+
+        return revision;
     }
 }
