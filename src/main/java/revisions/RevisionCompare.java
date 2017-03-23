@@ -60,22 +60,18 @@ public class RevisionCompare {
         //for every section: map old sentences to new sentences, identify added and removed sentences
         Map<String, List<Map.Entry<String, String>>> sectionToContentAdded = new HashMap<>();
         Map<String, List<Map.Entry<String, String>>> sectionToContentRemoved = new HashMap<>();
-        Map<String, Set<String>> sectionToNewsReferencesAdded = new HashMap<>();
-        Map<String, Set<String>> sectionToNewsReferencesRemoved = new HashMap<>();
-        Map<String, Set<String>> sectionToOtherReferencesAdded = new HashMap<>();
-        Map<String, Set<String>> sectionToOtherReferencesRemoved = new HashMap<>();
+        Map<String, Set<String>> sectionToReferencesAdded = new HashMap<>();
+        Map<String, Set<String>> sectionToReferencesRemoved = new HashMap<>();
 
-        computeContentDifferences(newSectionsToOldSections, revision, lastRevision, sectionToContentAdded, sectionToNewsReferencesAdded, sectionToOtherReferencesAdded);
-        computeContentDifferences(oldSectionsToNewSections, lastRevision, revision, sectionToContentRemoved, sectionToNewsReferencesRemoved, sectionToOtherReferencesRemoved);
+        computeContentDifferences(newSectionsToOldSections, revision, lastRevision, sectionToContentAdded, sectionToReferencesAdded);
+        computeContentDifferences(oldSectionsToNewSections, lastRevision, revision, sectionToContentRemoved, sectionToReferencesRemoved);
 
         String output_string = "";
 
         //output changes in all sections
         for (String section : newSectionsToOldSections.keySet()){
             output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
-                    sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
-                    sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-                    false, revision, revision_string);
+                    sectionToReferencesAdded, sectionToReferencesRemoved, false, revision, revision_string);
         }
 
         //check for deleted sections
@@ -83,9 +79,7 @@ public class RevisionCompare {
             if (!newSectionsToOldSections.keySet().contains(section)){
                 //deleted section
                 output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
-                        sectionToNewsReferencesAdded, sectionToNewsReferencesRemoved,
-                        sectionToOtherReferencesAdded, sectionToOtherReferencesRemoved,
-                        true, revision, revision_string);
+                        sectionToReferencesAdded, sectionToReferencesRemoved, true, revision, revision_string);
             }
         }
 
@@ -96,10 +90,8 @@ public class RevisionCompare {
     public String outputChanges(String section,
                                 Map<String, List<Map.Entry<String, String>>> sectionToContentAdded,
                                 Map<String, List<Map.Entry<String, String>>> sectionToContentRemoved,
-                                Map<String, Set<String>> sectionToNewsReferencesAdded,
-                                Map<String, Set<String>> sectionToNewsReferencesRemoved,
-                                Map<String, Set<String>> sectionToOtherReferencesAdded,
-                                Map<String, Set<String>> sectionToOtherReferencesRemoved,
+                                Map<String, Set<String>> sectionToReferencesAdded,
+                                Map<String, Set<String>> sectionToReferencesRemoved,
                               boolean deletedSection, WikipediaEntityRevision revision, String revision_string) throws IOException {
 
         String output_for_section = "";
@@ -154,26 +146,17 @@ public class RevisionCompare {
             content_removed_string = "[]";
         }
 
-        if (!sectionToNewsReferencesAdded.containsKey(section)) {
+        if (!sectionToReferencesAdded.containsKey(section)) {
             Set<String> set = new HashSet<>();
-            sectionToNewsReferencesAdded.put(section,set);
+            sectionToReferencesAdded.put(section,set);
         }
-        if (!sectionToNewsReferencesRemoved.containsKey(section)) {
+        if (!sectionToReferencesRemoved.containsKey(section)) {
             Set<String> set = new HashSet<>();
-            sectionToNewsReferencesRemoved.put(section,set);
-        }
-        if (!sectionToOtherReferencesAdded.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToOtherReferencesAdded.put(section,set);
-        }
-        if (!sectionToOtherReferencesRemoved.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToOtherReferencesRemoved.put(section,set);
+            sectionToReferencesRemoved.put(section,set);
         }
 
         if (content_added_string.length() > 2 || content_removed_string.length() > 2
-                || sectionToNewsReferencesAdded.get(section).size() > 0 || sectionToNewsReferencesAdded.get(section).size() > 0
-                || sectionToOtherReferencesAdded.get(section).size() > 0 || sectionToOtherReferencesAdded.get(section).size() > 0) {
+                || sectionToReferencesAdded.get(section).size() > 0 || sectionToReferencesAdded.get(section).size() > 0) {
 
             String section_string = "";
             if (deletedSection) {
@@ -184,9 +167,8 @@ public class RevisionCompare {
 
             output_for_section = revision.user_id + "\t" + revision.user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
                     + revision.timestamp + "\t" + revision.revision_comment + "\t" + section_string + "\t" + content_added_string
-                    + "\t" + content_removed_string + "\t" + sectionToNewsReferencesAdded.get(section)
-                    + "\t" + sectionToNewsReferencesRemoved.get(section) + "\t" + sectionToOtherReferencesAdded.get(section)
-                    + "\t" + sectionToOtherReferencesRemoved.get(section) + "\t" + revision_string + "\n";
+                    + "\t" + content_removed_string + "\t" + sectionToReferencesAdded.get(section)
+                    + "\t" + sectionToReferencesRemoved.get(section) + "\t" + revision_string + "\n";
         }
         return output_for_section;
     }
@@ -230,20 +212,19 @@ public class RevisionCompare {
 
     public void computeContentDifferences(Map<String, Set<String>> sectionsToSections, WikipediaEntityRevision revision, WikipediaEntityRevision comparedRevision,
                                           Map<String, List<Map.Entry<String, String>>> sectionToContentDifferences,
-                                          Map<String, Set<String>> sectionToNewsReferenceDifferences,
-                                          Map<String, Set<String>> sectionToOtherReferenceDifferences) {
+                                          Map<String, Set<String>> sectionToReferenceDifferences) {
         for (String section : sectionsToSections.keySet()) {
             //compare with mapped sections, for now only with top section
 
             //only one section to compare
             if (sectionsToSections.get(section).size() == 1) {
-                compareSections(section, sectionsToSections.get(section).iterator().next(), revision, comparedRevision, sectionToContentDifferences, sectionToNewsReferenceDifferences, sectionToOtherReferenceDifferences);
+                compareSections(section, sectionsToSections.get(section).iterator().next(), revision, comparedRevision, sectionToContentDifferences, sectionToReferenceDifferences);
             }
 
             //no section to compare
             if (sectionsToSections.get(section).size() == 0) {
                 //new section
-                compareSections(section, "", revision, comparedRevision, sectionToContentDifferences, sectionToNewsReferenceDifferences, sectionToOtherReferenceDifferences);
+                compareSections(section, "", revision, comparedRevision, sectionToContentDifferences, sectionToReferenceDifferences);
             }
 
             //multiple sections to compare
@@ -258,13 +239,11 @@ public class RevisionCompare {
                 //intersection of all comparison results
                 for (String similarSection : sectionsToSections.get(section)) {
                     Map<String, List<Map.Entry<String, String>>> contentDifferences = new HashMap<>();
-                    Map<String, Set<String>> newsRefDifferences = new HashMap<>();
-                    Map<String, Set<String>> otherRefDifferences = new HashMap<>();
-                    compareSections(section, similarSection, revision, comparedRevision, contentDifferences, newsRefDifferences, otherRefDifferences);
+                    Map<String, Set<String>> refDifferences = new HashMap<>();
+                    compareSections(section, similarSection, revision, comparedRevision, contentDifferences, refDifferences);
 
                     contentDifferences_similarSections.put(similarSection, contentDifferences.get(section));
-                    newsRefDifferences_similarSections.put(similarSection, newsRefDifferences.get(section));
-                    otherRefDifferences_similarSections.put(similarSection, otherRefDifferences.get(section));
+                    newsRefDifferences_similarSections.put(similarSection, refDifferences.get(section));
                 }
 
                 List<Map.Entry<String, String>> contentDifferences_intersection = computeIntersection(contentDifferences_similarSections);
@@ -278,8 +257,7 @@ public class RevisionCompare {
 //                        + revision_string);
 
                 sectionToContentDifferences.put(section, contentDifferences_intersection);
-                sectionToNewsReferenceDifferences.put(section, newsRefDifferences_intersection);
-                sectionToOtherReferenceDifferences.put(section, otherRefDifferences_intersection);
+                sectionToReferenceDifferences.put(section, newsRefDifferences_intersection);
             }
         }
     }
@@ -331,30 +309,27 @@ public class RevisionCompare {
 
     //computes differences between two sections
     public void compareSections(String section, String comparedSection, WikipediaEntityRevision revision, WikipediaEntityRevision comparedRevision,
-                                Map<String, List<Map.Entry<String, String>>> sectionToContentDifferences,
-                                Map<String, Set<String>> sectionToNewsReferenceDifferences,
-                                Map<String, Set<String>> sectionToOtherReferenceDifferences) {
+                                Map<String, List<Map.Entry<String, String>>> sectionToContentDifferences, Map<String, Set<String>> sectionToReferenceDifferences) {
         List<Map.Entry<String, String>> contentDifferences = new ArrayList<>();
-        Set<String> newsReferenceDifferences = new HashSet<>();
-        Set<String> otherReferenceDifferences = new HashSet<>();
+        Set<String> referenceDifferences = new HashSet<>();
 
         WikiSection wiki_section;
         WikiSection wiki_section_compare ;
         List<String> section_sentences = new ArrayList<>();
         List<String> compared_section_sentences = new ArrayList<>();
-        Map<String, Set<String>> urls = new HashMap<>();
-        Map<String, Set<String>> compared_urls = new HashMap<>();
+        Set<String> urls = new HashSet<>();
+        Set<String> compared_urls = new HashSet<>();
 
         //extract references and sentences for both sections
         if (!section.isEmpty()){
             wiki_section = revision.entity.getSection(section);
             section_sentences = wiki_section.sentences;
-            urls = getURLs(wiki_section.getSectionCitations());
+            urls = wiki_section.urls;
         }
         if (!comparedSection.isEmpty()){
             wiki_section_compare = comparedRevision.entity.getSection(comparedSection);
             compared_section_sentences = wiki_section_compare.sentences;
-            compared_urls = getURLs(wiki_section_compare.getSectionCitations());
+            compared_urls = wiki_section_compare.urls;
         }
 
         //content differences
@@ -375,26 +350,12 @@ public class RevisionCompare {
         sectionToContentDifferences.put(section, contentDifferences);
 
         //reference differences
-        //news urls
-        if (urls.containsKey("news")) {
-            for (String url : urls.get("news")) {
-                if (!compared_urls.containsKey("news") || !compared_urls.get("news").contains(url)) {
-                    //reference added
-                    newsReferenceDifferences.add(url);
-                }
+        for (String url : urls){
+            if (!compared_urls.contains(url)){
+                referenceDifferences.add(url);
             }
-            sectionToNewsReferenceDifferences.put(section, newsReferenceDifferences);
         }
-        //other urls
-        if (urls.containsKey("other")) {
-            for (String url : urls.get("other")) {
-                if (!compared_urls.containsKey("other") || !compared_urls.get("other").contains(url)) {
-                    //reference added
-                    otherReferenceDifferences.add(url);
-                }
-            }
-            sectionToOtherReferenceDifferences.put(section, otherReferenceDifferences);
-        }
+        sectionToReferenceDifferences.put(section, referenceDifferences);
     }
 
 
@@ -419,28 +380,22 @@ public class RevisionCompare {
     }
 
 
-    public Map<String, Set<String>> getURLs(Map<Integer, Map<String, String>> references) {
-        Map<String, Set<String>> urls = new HashMap<>();
+    public Set<String> getURLs(Map<Integer, Map<String, String>> references) {
+        Set<String> urls = new HashSet<>();
         for (int ref : references.keySet()) {
             if (!references.get(ref).containsKey("url")) {
                 continue;
             }
             String type = references.get(ref).containsKey("type") ? references.get(ref).get("type") : "null";
             String url = references.get(ref).get("url");
-            url = url.toLowerCase();
+//            url = url.toLowerCase();
 //
 //            url = url.replace("}}", "");
 //            url = url.replace("url=", "");
 
             if (type.equals("news")) {
-                if (!urls.containsKey(type)) {
-                    urls.put(type, new HashSet<>());
-                }
-                urls.get(type).add(url);
+                urls.add("News: " + url);
             } else {
-                if (!urls.containsKey("other")) {
-                    urls.put("other", new HashSet<>());
-                }
                 String clean_url = url;
 //                String[] parts = url.split(" ");
 //
@@ -454,7 +409,7 @@ public class RevisionCompare {
 //                        }
 //                    }
 //                }
-                urls.get("other").add(clean_url);
+                urls.add(clean_url);
             }
         }
         return urls;
