@@ -40,7 +40,7 @@ public class RevisionComparison extends Configured implements Tool {
     public int run(String[] args) throws Exception {
         Configuration conf = getConf();
         int num_reducers = 10;
-        conf.set("mapreduce.map.java.opts", "-Xmx2G");
+        conf.set("mapreduce.map.java.opts", "-Xmx4G");
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
@@ -103,6 +103,7 @@ public class RevisionComparison extends Configured implements Tool {
                     WikiSection section = revision.entity.getSection(section_key);
                     section.sentences = rc.getSentences(section.section_text);
                     section.setSectionCitations(revision.entity.getEntityCitations());
+//                    section.urls = rc.getURLs(section.getSectionCitations()); //do only once
                 }
 
                 //return the revision difference data ending with a "\n"
@@ -116,13 +117,14 @@ public class RevisionComparison extends Configured implements Tool {
 
             //write the data into HDFS.
             Text revision_output = new Text();
-            int last_pos = 0;
+//            int last_pos = 0;
             for (String rev_output : revision_difference_data) {
                 byte[] data = rev_output.getBytes();
                 int len = data.length;
 
-                revision_output.append(data, last_pos, len);
-                last_pos = last_pos + len + 1;
+                revision_output.append(data, 0, len); //!ArrayIndexOutOfBounds
+//                rev_output = rev_output + data;
+//                last_pos = last_pos + len + 1;
             }
             context.write(null, revision_output);
         }

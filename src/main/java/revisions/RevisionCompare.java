@@ -54,8 +54,8 @@ public class RevisionCompare {
         Map<String, Set<String>> oldSectionsToNewSections = new HashMap<>();
         Map<String, Set<String>> newSectionsToOldSections = new HashMap<>();
 
-        computeSectionMappings(lastRevision, revision, oldSectionsToNewSections);
         computeSectionMappings(revision, lastRevision, newSectionsToOldSections);
+        computeSectionMappings(lastRevision, revision, oldSectionsToNewSections);
 
         //for every section: map old sentences to new sentences, identify added and removed sentences
         Map<String, List<Map.Entry<String, String>>> sectionToContentAdded = new HashMap<>();
@@ -307,18 +307,23 @@ public class RevisionCompare {
 
     public Set<String> computeIntersectionSet(Map<String, Set<String>> differences_similarSections) {
         Set<String> differences_intersection = new HashSet<>();
-        String first_section = differences_similarSections.keySet().iterator().next();
-        for (String difference : differences_similarSections.get(first_section)) { //pick one random section, check if all other sections contain the same difference
-            boolean difference_in_all_sections = true;
-            for (String involved_section : differences_similarSections.keySet()) {
-                if (!differences_similarSections.get(involved_section).contains(difference)) {
-                    difference_in_all_sections = false;
-                    break;
+
+        try {
+            String first_section = differences_similarSections.keySet().iterator().next();
+            for (String difference : differences_similarSections.get(first_section)) { //pick one random section, check if all other sections contain the same difference
+                boolean difference_in_all_sections = true;
+                for (String involved_section : differences_similarSections.keySet()) {
+                    if (!differences_similarSections.get(involved_section).contains(difference)) {
+                        difference_in_all_sections = false;
+                        break;
+                    }
+                }
+                if (difference_in_all_sections) {
+                    differences_intersection.add(difference);
                 }
             }
-            if (difference_in_all_sections) {
-                differences_intersection.add(difference);
-            }
+        } catch (NullPointerException e){
+
         }
         return differences_intersection;
     }
@@ -333,8 +338,8 @@ public class RevisionCompare {
         Set<String> newsReferenceDifferences = new HashSet<>();
         Set<String> otherReferenceDifferences = new HashSet<>();
 
-        WikiSection wiki_section = new WikiSection();
-        WikiSection wiki_section_compare = new WikiSection();
+        WikiSection wiki_section;
+        WikiSection wiki_section_compare ;
         List<String> section_sentences = new ArrayList<>();
         List<String> compared_section_sentences = new ArrayList<>();
         Map<String, Set<String>> urls = new HashMap<>();
@@ -481,7 +486,7 @@ public class RevisionCompare {
         for (String sentence : nlp.getDocumentSentences(text)) {
             sentence = sentence.replace("\\n", "");
             if (sentence.length() > 3) {
-                sentence = StringEscapeUtils.unescapeJson(sentence);
+//                sentence = StringEscapeUtils.unescapeJson(sentence);
                 sentences.add(sentence);
             }
         }

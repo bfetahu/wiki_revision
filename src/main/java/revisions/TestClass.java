@@ -1,15 +1,13 @@
 package revisions;
 
 import entities.WikipediaEntity;
+import org.apache.hadoop.io.Text;
 import utils.FileUtils;
 import utils.SimilarityMeasures;
 import utils.WikiUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Created by hube on 1/27/2017.
@@ -35,5 +33,23 @@ public class TestClass {
 //        WikiUtils.extractWikiReferences(text);
 
 //        System.out.println(entity.getSectionKeys());
+
+        List<String> revision_difference_data = new ArrayList<>();
+        revision_difference_data.add("test1");
+        revision_difference_data.add("test2");
+        revision_difference_data.add("test3");
+
+        Text revision_output = new Text();
+        int last_pos = 0;
+        for (String rev_output : revision_difference_data) {
+            byte[] data = rev_output.getBytes();
+            int len = data.length;
+
+            revision_output.append(data, 0, len); //!ArrayIndexOutOfBounds
+//            revision_output.append(rev_output);
+//            last_pos = last_pos + len + 1;
+        }
+
+        System.out.println(revision_output);
     }
 }
