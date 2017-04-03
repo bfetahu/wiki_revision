@@ -103,7 +103,6 @@ public class RevisionComparison extends Configured implements Tool {
                     WikiSection section = revision.entity.getSection(section_key);
                     section.sentences = rc.getSentences(section.section_text);
                     section.setSectionCitations(revision.entity.getEntityCitations());
-//                    section.urls = rc.getURLs(section.getSectionCitations()); //do only once
                 }
 
                 //return the revision difference data ending with a "\n"
@@ -117,14 +116,19 @@ public class RevisionComparison extends Configured implements Tool {
 
             //write the data into HDFS.
             Text revision_output = new Text();
-//            int last_pos = 0;
-            for (String rev_output : revision_difference_data) {
-                byte[] data = rev_output.getBytes();
-                int len = data.length;
 
-                revision_output.append(data, 0, len); //!ArrayIndexOutOfBounds
-//                rev_output = rev_output + data;
-//                last_pos = last_pos + len + 1;
+            int total_length = 0;
+            for (String rev_output : revision_difference_data) {
+                total_length += rev_output.getBytes().length;
+            }
+
+            byte[] output = new byte[total_length];
+            int last_pos = 0;
+            for (String rev_output : revision_difference_data) {
+                total_length += rev_output.getBytes().length;
+                byte[] data = rev_output.getBytes();
+                System.arraycopy(data, 0, output, last_pos, data.length);
+                last_pos += data.length;
             }
             context.write(null, revision_output);
         }
