@@ -47,6 +47,7 @@ public class RevisionComparison extends Configured implements Tool {
 
         conf.setLong("mapreduce.task.timeout", milliSeconds);
         conf.setLong("mapred.task.timeout", milliSeconds);
+        conf.set("mapred.output.compress", "true");
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
