@@ -1,11 +1,14 @@
 package mapred;
 
+import entities.WikiEntity;
 import entities.WikiSection;
+import entities.WikiSectionSimple;
 import entities.WikipediaEntity;
-import entities.WikipediaEntityRevision;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -20,18 +23,18 @@ import org.json.JSONObject;
 import org.json.XML;
 import revisions.RevisionCompare;
 import utils.FileUtils;
+import utils.NLPUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 
 /**
  * Created by besnik on 3/15/17.
  */
 public class RevisionComparison extends Configured implements Tool {
+    public static NLPUtils nlp = new NLPUtils(2);
+
     public static void main(String[] args) throws Exception {
         ToolRunner.run(new RevisionComparison(), args);
     }
@@ -40,7 +43,10 @@ public class RevisionComparison extends Configured implements Tool {
     public int run(String[] args) throws Exception {
         Configuration conf = getConf();
         int num_reducers = 10;
-        conf.set("mapreduce.map.java.opts", "-Xmx4G");
+        long milliSeconds = 10000 * 60 * 60;// <default is 600000, likewise can give any value)
+
+        conf.setLong("mapreduce.task.timeout", milliSeconds);
+        conf.setLong("mapred.task.timeout", milliSeconds);
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
@@ -55,6 +61,7 @@ public class RevisionComparison extends Configured implements Tool {
             }
         }
         Job job = new Job(conf);
+
         job.setNumReduceTasks(num_reducers);
 
         job.setJarByClass(RevisionComparison.class);
@@ -64,7 +71,7 @@ public class RevisionComparison extends Configured implements Tool {
         job.setOutputValueClass(Text.class);
 
         job.setMapOutputKeyClass(Text.class);
-        job.setMapOutputValueClass(Text.class);
+        job.setMapOutputValueClass(BytesWritable.class);
 
         job.setMapperClass(WikiRevisionFilterMapper.class);
         job.setReducerClass(WikiRevisionFilterReducer.class);
@@ -83,54 +90,50 @@ public class RevisionComparison extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiRevisionFilterReducer extends Reducer<Text, Text, Text, Text> {
+    public static class WikiRevisionFilterReducer extends Reducer<Text, BytesWritable, Text, Text> {
         @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            Map<Long, WikipediaEntityRevision> sorted_revisions = new TreeMap<>();
-            for (Text value : values) {
-                WikipediaEntityRevision revision = parseEntity(value.toString());
-                sorted_revisions.put(revision.revision_id, revision);
+        protected void reduce(Text key, Iterable<BytesWritable> values, Context context) throws IOException, InterruptedException {
+            Map<Long, WikiEntity> sorted_revisions = new TreeMap<>();
+            for (BytesWritable value : values) {
+                WikiEntity entity = new WikiEntity();
+                entity.readBytes(value.getBytes());
+                sorted_revisions.put(entity.revision_id, entity);
             }
 
             RevisionCompare rc = new RevisionCompare(context.getConfiguration().get("stop_words"));
-            WikipediaEntityRevision prev = null;
+            WikiEntity prev = null;
             List<String> revision_difference_data = new ArrayList<>();
             for (long rev_id : sorted_revisions.keySet()) {
-                WikipediaEntityRevision revision = sorted_revisions.get(rev_id);
-
-                //extract the section sentences.
-                for (String section_key : revision.entity.getSectionKeys()) {
-                    WikiSection section = revision.entity.getSection(section_key);
-                    section.sentences = rc.getSentences(section.section_text);
-                    section.setSectionCitations(revision.entity.getEntityCitations());
-                }
-
+                WikiEntity revision = sorted_revisions.get(rev_id);
                 //return the revision difference data ending with a "\n"
+                String rev_comparison = "";
                 if (prev == null) {
-                    revision_difference_data.add(rc.compareWithOldRevision(revision, new WikipediaEntityRevision(), true));
+                    rev_comparison = rc.compareWithOldRevision(revision, new WikiEntity());
                 } else {
-                    revision_difference_data.add(rc.compareWithOldRevision(revision, prev, false));
+                    rev_comparison = rc.compareWithOldRevision(revision, prev);
                 }
                 prev = revision;
+                revision_difference_data.add(rev_comparison.replaceAll("\n+", " "));
             }
 
             //write the data into HDFS.
-            Text revision_output = new Text();
+            int total_length = revision_difference_data.stream().mapToInt(s -> s.length()).sum();
+            int buckets = total_length / Integer.MAX_VALUE;
+            buckets = buckets == 0 ? 1 : buckets;
+            int length = total_length / buckets;
 
-            int total_length = 0;
-            for (String rev_output : revision_difference_data) {
-                total_length += rev_output.getBytes().length;
+            Iterator<String> lines = revision_difference_data.iterator();
+            for (int i = 0; i < buckets; i++) {
+                StringBuffer sb = new StringBuffer();
+
+                while (lines.hasNext()) {
+                    if (sb.length() >= length) break;
+                    sb.append(lines.next());
+                    lines.remove();
+                }
+                context.write(new Text(key + "--" + i), new Text(sb.toString()));
             }
 
-            byte[] output = new byte[total_length];
-            int last_pos = 0;
-            for (String rev_output : revision_difference_data) {
-                total_length += rev_output.getBytes().length;
-                byte[] data = rev_output.getBytes();
-                System.arraycopy(data, 0, output, last_pos, data.length);
-                last_pos += data.length;
-            }
-            context.write(null, revision_output);
         }
 
     }
@@ -138,7 +141,7 @@ public class RevisionComparison extends Configured implements Tool {
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, Text> {
+    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, BytesWritable> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
@@ -148,12 +151,13 @@ public class RevisionComparison extends Configured implements Tool {
             title = entity_json.has("title") ? entity_json.get("title").toString() : "";
 
             if (revision_json.has("timestamp")) {
-                context.write(new Text(title), value);
+                WikiEntity revision = parseEntity(value.toString());
+                context.write(new Text(title), new BytesWritable(revision.getBytes()));
             }
         }
     }
 
-    public static WikipediaEntityRevision parseEntity(String value) {
+    public static WikiEntity parseEntity(String value) {
         JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
         JSONObject revision_json = entity_json.getJSONObject("revision");
         JSONObject contributor_json = revision_json.getJSONObject("contributor");
@@ -169,12 +173,6 @@ public class RevisionComparison extends Configured implements Tool {
         text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
 
 
-        WikipediaEntityRevision revision = new WikipediaEntityRevision();
-        revision.user_id = user_id;
-        revision.revision_id = revision_json.getLong("id");
-        revision.user_id = user_id;
-        revision.user_name = user;
-
         WikipediaEntity entity = new WikipediaEntity();
         entity.setTitle(title);
         entity.setCleanReferences(true);
@@ -182,9 +180,54 @@ public class RevisionComparison extends Configured implements Tool {
         entity.setMainSectionsOnly(false);
         entity.setSplitSections(true);
         entity.setContent(text);
-        revision.entity = entity;
+
+        //extract the section sentences.
+        WikiEntity entity_simple = new WikiEntity();
+        entity_simple.revision_id = revision_json.getLong("id");
+        entity_simple.timestamp = revision_json.get("timestamp").toString();
+        entity_simple.title = title;
+        entity_simple.user_id = user_id;
+
+        for (String section_key : entity.getSectionKeys()) {
+            WikiSection section = entity.getSection(section_key);
+
+            WikiSectionSimple section_simple = new WikiSectionSimple();
+            section_simple.sentences = getSentences(section.section_text);
+            section.setSectionCitations(entity.getEntityCitations());
+            section_simple.section_citations = section.getSectionCitations();
+
+            entity_simple.sections.put(section_key, section_simple);
+        }
+
+        return entity_simple;
+    }
 
 
-        return revision;
+    /**
+     * Construct the sentence list for each entity sections.
+     *
+     * @param text
+     * @return
+     */
+    public static List<String> getSentences(String text) {
+        List<String> sentences = new ArrayList<>();
+        text = StringEscapeUtils.escapeJson(text);
+
+        //cleaning
+        text = text.replace("...", ".");
+        text = text.replace("\n\n", ".");
+
+//        text = text.replace("�", "");
+        text = text.replaceAll("\\{\\{[0-9]+\\}\\}", "");
+//        text = text.replaceAll("â€", "");
+        text = text.replaceAll("\\[|\\]", "");
+
+        for (String sentence : nlp.getDocumentSentences(text)) {
+            sentence = sentence.replace("\\n", "");
+            if (sentence.length() > 3) {
+                sentences.add(sentence);
+            }
+        }
+        return sentences;
     }
 }

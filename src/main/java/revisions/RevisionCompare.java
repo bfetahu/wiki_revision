@@ -1,10 +1,7 @@
 package revisions;
 
-import entities.WikiSection;
-import entities.WikipediaEntity;
-import entities.WikipediaEntityRevision;
-import org.apache.commons.lang3.StringEscapeUtils;
-import utils.NLPUtils;
+import entities.WikiEntity;
+import entities.WikiSectionSimple;
 import utils.SimilarityMeasures;
 
 import java.io.IOException;
@@ -16,9 +13,7 @@ import java.util.stream.Collectors;
  * Created by hube on 1/20/2017.
  */
 public class RevisionCompare {
-
-    NLPUtils nlp = new NLPUtils(2);
-    Set<String> stopWords = new HashSet<String>();
+    Set<String> stopWords = new HashSet<>();
     double JACCARD_THRESHOLD_SECTION = 0.1;
     double JACCARD_THRESHOLD_SENTENCE = 0.3;
 
@@ -32,19 +27,7 @@ public class RevisionCompare {
     }
 
 
-    public String compareWithOldRevision(WikipediaEntityRevision revision, WikipediaEntityRevision lastRevision, boolean firstRevision) throws IOException {
-        if (firstRevision) {
-            WikipediaEntity emptyEntity = new WikipediaEntity();
-            emptyEntity.setSplitSections(true);
-
-            //set content to empty
-
-            emptyEntity.setContent(new StringBuffer().append("{{Infobox aircraft occurrence\n").append("}}\n").append("==References==\n").append("{{reflist}}").toString());
-            lastRevision.entity = emptyEntity;
-        }
-
-        String revision_string = new StringBuffer().append("https://en.wikipedia.org/w/index.php?diff=").append(revision.revision_id).append("&oldid=").append(lastRevision.revision_id).toString();
-
+    public String compareWithOldRevision(WikiEntity revision, WikiEntity lastRevision) throws IOException {
         //map old section to new section, identify added and removed sections, result: section mappings
         Map<String, Set<String>> oldSectionsToNewSections = new HashMap<>();
         Map<String, Set<String>> newSectionsToOldSections = new HashMap<>();
@@ -61,24 +44,23 @@ public class RevisionCompare {
         computeContentDifferences(newSectionsToOldSections, revision, lastRevision, sectionToContentAdded, sectionToReferencesAdded);
         computeContentDifferences(oldSectionsToNewSections, lastRevision, revision, sectionToContentRemoved, sectionToReferencesRemoved);
 
-        String output_string = "";
+        StringBuffer sb = new StringBuffer();
 
         //output changes in all sections
         for (String section : newSectionsToOldSections.keySet()) {
-            output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
-                    sectionToReferencesAdded, sectionToReferencesRemoved, false, revision, revision_string);
+            sb.append(outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
+                    sectionToReferencesAdded, sectionToReferencesRemoved, false, revision));
         }
 
         //check for deleted sections
         for (String section : oldSectionsToNewSections.keySet()) {
             if (!newSectionsToOldSections.keySet().contains(section)) {
                 //deleted section
-                output_string = output_string + outputChanges(section, sectionToContentAdded, sectionToContentRemoved,
-                        sectionToReferencesAdded, sectionToReferencesRemoved, true, revision, revision_string);
+                sb.append(outputChanges(section, sectionToContentAdded, sectionToContentRemoved, sectionToReferencesAdded, sectionToReferencesRemoved, true, revision));
             }
         }
 
-        return output_string;
+        return sb.toString();
     }
 
 
@@ -87,15 +69,15 @@ public class RevisionCompare {
                                 Map<String, List<Map.Entry<String, String>>> sectionToContentRemoved,
                                 Map<String, Set<String>> sectionToReferencesAdded,
                                 Map<String, Set<String>> sectionToReferencesRemoved,
-                                boolean deletedSection, WikipediaEntityRevision revision, String revision_string) throws IOException {
+                                boolean deletedSection, WikiEntity revision) throws IOException {
 
         String output_for_section = "";
 
         //create content strings
 
-        String content_added_string = "";
+        StringBuffer content_added_string = new StringBuffer();
         if (sectionToContentAdded.containsKey(section)) {
-            content_added_string = "[";
+            content_added_string.append("[");
             for (Map.Entry<String, String> sentence_mapping : sectionToContentAdded.get(section)) {
                 String sentence = sentence_mapping.getKey();
                 String similar_sentence = "";
@@ -105,22 +87,22 @@ public class RevisionCompare {
 
                 }
                 if (!content_added_string.equals("[")) {
-                    content_added_string = content_added_string + ";";
+                    content_added_string.append(";");
                 }
                 if (similar_sentence == null) {
-                    content_added_string = content_added_string + sentence;
+                    content_added_string.append(sentence);
                 } else {
-                    content_added_string = content_added_string + similar_sentence + " --> " + sentence;
+                    content_added_string.append(similar_sentence).append(" --> ").append(sentence);
                 }
             }
-            content_added_string = content_added_string + "]";
+            content_added_string.append("]");
         } else {
-            content_added_string = "[]";
+            content_added_string.append("[]");
         }
 
-        String content_removed_string = "";
+        StringBuffer content_removed_string = new StringBuffer();
         if (sectionToContentRemoved.containsKey(section)) {
-            content_removed_string = "[";
+            content_removed_string.append("[");
             for (Map.Entry<String, String> sentence_mapping : sectionToContentRemoved.get(section)) {
                 String sentence = sentence_mapping.getKey();
                 String similar_sentence = "";
@@ -130,15 +112,15 @@ public class RevisionCompare {
 
                 }
                 if (!content_removed_string.equals("[") && similar_sentence == null) {
-                    content_removed_string = content_removed_string + ";";
+                    content_removed_string.append(";");
                 }
                 if (similar_sentence == null) {
-                    content_removed_string = content_removed_string + sentence;
+                    content_removed_string.append(sentence);
                 }
             }
-            content_removed_string = content_removed_string + "]";
+            content_removed_string.append("]");
         } else {
-            content_removed_string = "[]";
+            content_removed_string.append("[]");
         }
 
         if (!sectionToReferencesAdded.containsKey(section)) {
@@ -160,19 +142,22 @@ public class RevisionCompare {
                 section_string = section;
             }
 
-            output_for_section = revision.user_id + "\t" + revision.user_name + "\t" + revision.entity_id + "\t" + revision.revision_id + "\t"
-                    + revision.timestamp + "\t" + revision.revision_comment + "\t" + section_string + "\t" + content_added_string
-                    + "\t" + content_removed_string + "\t" + sectionToReferencesAdded.get(section)
-                    + "\t" + sectionToReferencesRemoved.get(section) + "\t" + revision_string + "\n";
+            StringBuffer sb = new StringBuffer();
+            sb.append(revision.user_id).append("\t").append(revision.entity_id).append("\t").append(revision.title).
+                    append("\t").append(revision.revision_id).append("\t").append(revision.timestamp).
+                    append("\t").append(section_string).append("\t").append(content_added_string).
+                    append("\t").append(content_removed_string).append("\t").append(sectionToReferencesAdded.get(section)).
+                    append("\t").append(sectionToReferencesRemoved.get(section)).append("\n");
+            output_for_section = sb.toString();
         }
         return output_for_section;
     }
 
 
-    public void computeSectionMappings(WikipediaEntityRevision revision, WikipediaEntityRevision compared_revision, Map<String, Set<String>> sectionMapping) {
+    public void computeSectionMappings(WikiEntity revision, WikiEntity compared_revision, Map<String, Set<String>> sectionMapping) {
         //get sections for both revisions
-        Set<String> revision_sections = revision.entity.getSectionKeys();
-        Set<String> compared_revision_sections = compared_revision.entity.getSectionKeys();
+        Set<String> revision_sections = revision.sections.keySet();
+        Set<String> compared_revision_sections = compared_revision.sections.keySet();
 
         //check for differences between revisions
         for (String section : revision_sections) {
@@ -182,20 +167,23 @@ public class RevisionCompare {
                 set.add(section);
                 sectionMapping.put(section, set);
             } else {
-
                 Set<String> set = new HashSet<>();
                 sectionMapping.put(section, set);
 
                 //check if section name has changed
                 for (String compared_section : compared_revision_sections) {
-
                     //rename?
                     if (revision_sections.contains(compared_section)) {
                         continue;
                     }
 
                     //compute similarity between sections
-                    double jacdis = SimilarityMeasures.computeJaccardDistance(revision.entity.getSectionText(section), compared_revision.entity.getSectionText(compared_section));
+                    String section_text = revision.sections.get(section).section_text;
+                    String compared_section_text = compared_revision.sections.get(compared_section).section_text;
+                    if (section_text == null || compared_section_text == null) {
+                        continue;
+                    }
+                    double jacdis = SimilarityMeasures.computeJaccardDistance(section_text, compared_section_text);
                     if (jacdis > JACCARD_THRESHOLD_SECTION) {
                         sectionMapping.get(section).add(compared_section);
                     }
@@ -205,7 +193,7 @@ public class RevisionCompare {
     }
 
 
-    public void computeContentDifferences(Map<String, Set<String>> sectionsToSections, WikipediaEntityRevision revision, WikipediaEntityRevision comparedRevision,
+    public void computeContentDifferences(Map<String, Set<String>> sectionsToSections, WikiEntity revision, WikiEntity comparedRevision,
                                           Map<String, List<Map.Entry<String, String>>> sectionToContentDifferences,
                                           Map<String, Set<String>> sectionToReferenceDifferences) {
         for (String section : sectionsToSections.keySet()) {
@@ -292,17 +280,17 @@ public class RevisionCompare {
 
 
     //computes differences between two sections
-    public void compareSections(String section, String comparedSection, WikipediaEntityRevision revision, WikipediaEntityRevision comparedRevision,
+    public void compareSections(String section, String comparedSection, WikiEntity revision, WikiEntity comparedRevision,
                                 Map<String, List<Map.Entry<String, String>>> sectionToContentDifferences, Map<String, Set<String>> sectionToReferenceDifferences) {
-        if (revision.entity.getSection(section) == null || comparedRevision.entity.getSection(comparedSection) == null) {
+        if (revision.sections.get(section) == null || comparedRevision.sections.get(comparedSection) == null) {
             return;
         }
 
         List<Map.Entry<String, String>> contentDifferences = new ArrayList<>();
         Set<String> referenceDifferences = new HashSet<>();
 
-        WikiSection wiki_section = revision.entity.getSection(section);
-        WikiSection wiki_section_compare = comparedRevision.entity.getSection(comparedSection);
+        WikiSectionSimple wiki_section = revision.sections.get(section);
+        WikiSectionSimple wiki_section_compare = comparedRevision.sections.get(comparedSection);
         ;
         List<String> section_sentences = wiki_section.sentences;
         List<String> compared_section_sentences = wiki_section_compare.sentences;
@@ -324,8 +312,8 @@ public class RevisionCompare {
         sectionToContentDifferences.put(section, contentDifferences);
 
         //reference differences
-        Set<String> urls = wiki_section.getSectionCitations().values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
-        Set<String> compared_urls = wiki_section_compare.getSectionCitations().values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
+        Set<String> urls = wiki_section.section_citations.values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
+        Set<String> compared_urls = wiki_section_compare.section_citations.values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
         for (String url : urls) {
             if (!compared_urls.contains(url)) {
                 referenceDifferences.add(url);
@@ -351,33 +339,5 @@ public class RevisionCompare {
     }
 
 
-    /**
-     * Construct the sentence list for each entity sections.
-     *
-     * @param text
-     * @return
-     */
-    public List<String> getSentences(String text) {
-        List<String> sentences = new ArrayList<>();
-
-        text = StringEscapeUtils.escapeJson(text);
-
-        //cleaning
-        text = text.replace("...", ".");
-        text = text.replace("\n\n", ".");
-
-        text = text.replace("�", "");
-        text = text.replaceAll("\\{\\{[0-9]+\\}\\}", "");
-        text = text.replaceAll("â€", "");
-        text = text.replaceAll("\\[|\\]", "");
-
-        for (String sentence : nlp.getDocumentSentences(text)) {
-            sentence = sentence.replace("\\n", "");
-            if (sentence.length() > 3) {
-                sentences.add(sentence);
-            }
-        }
-        return sentences;
-    }
 }
 
