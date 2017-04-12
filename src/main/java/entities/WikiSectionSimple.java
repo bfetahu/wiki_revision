@@ -1,10 +1,7 @@
 package entities;
 
-import gnu.trove.set.hash.TIntHashSet;
-
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -13,15 +10,11 @@ import java.util.Map;
  */
 public class WikiSectionSimple implements Serializable{
     public String section_text;
-
     public List<String> sentences;
-    public TIntHashSet urls;
-    public Map<Integer, Map<String, String>> section_citations;
-
+    public List<String> urls;
 
     public WikiSectionSimple() {
         sentences = new ArrayList<>();
-        urls = new TIntHashSet();
-        section_citations = new HashMap<>();
+        urls = new ArrayList<>();
     }
 }

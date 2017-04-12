@@ -109,9 +109,9 @@ public class RevisionComparison extends Configured implements Tool {
                 //return the revision difference data ending with a "\n"
                 String rev_comparison = "";
                 if (prev == null) {
-                    rev_comparison = rc.compareWithOldRevision(revision, new WikiEntity());
+                    rev_comparison = rc.compareWithOldRevision(revision, new WikiEntity(), true);
                 } else {
-                    rev_comparison = rc.compareWithOldRevision(revision, prev);
+                    rev_comparison = rc.compareWithOldRevision(revision, prev, false);
                 }
                 prev = revision;
                 revision_difference_data.add(rev_comparison.replaceAll("\n+", " "));
@@ -194,9 +194,6 @@ public class RevisionComparison extends Configured implements Tool {
 
             WikiSectionSimple section_simple = new WikiSectionSimple();
             section_simple.sentences = getSentences(section.section_text);
-            section.setSectionCitations(entity.getEntityCitations());
-            section_simple.section_citations = section.getSectionCitations();
-
             entity_simple.sections.put(section_key, section_simple);
         }
 
@@ -223,7 +220,11 @@ public class RevisionComparison extends Configured implements Tool {
 //        text = text.replaceAll("â€", "");
         text = text.replaceAll("\\[|\\]", "");
 
+        //testing if newlines are used as sentence-splitters
+        text = StringEscapeUtils.unescapeJson(text); //?
+
         for (String sentence : nlp.getDocumentSentences(text)) {
+            sentence = StringEscapeUtils.escapeJson(sentence); //?
             sentence = sentence.replace("\\n", "");
             if (sentence.length() > 3) {
                 sentences.add(sentence);

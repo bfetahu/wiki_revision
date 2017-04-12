@@ -27,7 +27,36 @@ public class RevisionCompare {
     }
 
 
-    public String compareWithOldRevision(WikiEntity revision, WikiEntity lastRevision) throws IOException {
+    public String compareWithOldRevision(WikiEntity revision, WikiEntity lastRevision, boolean firstRevision) throws IOException {
+        //handle first version of article
+        if (firstRevision){
+            Map<String, List<Map.Entry<String, String>>> sectionToContentAdded = new HashMap<>();
+            Map<String, Set<String>> sectionToReferencesAdded = new HashMap<>();
+
+            for (String section : revision.sections.keySet()) {
+                //sentences
+                List<Map.Entry<String, String>> sentences = new ArrayList<>();
+                for (String sentence : revision.sections.get(section).sentences) {
+                    sentences.add(new AbstractMap.SimpleEntry<>(sentence, null));
+                }
+                sectionToContentAdded.put(section, sentences);
+
+                //references
+                Set<String> references = new HashSet<>();
+                for (String url : revision.sections.get(section).urls) {
+                    references.add(url);
+                }
+                sectionToReferencesAdded.put(section, references);
+
+                outputChanges(section,
+                        sectionToContentAdded,
+                        null, //check in outputChanges()
+                        sectionToReferencesAdded,
+                        null,
+                        false, revision);
+            }
+        }
+
         //map old section to new section, identify added and removed sections, result: section mappings
         Map<String, Set<String>> oldSectionsToNewSections = new HashMap<>();
         Map<String, Set<String>> newSectionsToOldSections = new HashMap<>();
@@ -101,7 +130,7 @@ public class RevisionCompare {
         }
 
         StringBuffer content_removed_string = new StringBuffer();
-        if (sectionToContentRemoved.containsKey(section)) {
+        if (sectionToContentRemoved != null || sectionToContentRemoved.containsKey(section)) {
             content_removed_string.append("[");
             for (Map.Entry<String, String> sentence_mapping : sectionToContentRemoved.get(section)) {
                 String sentence = sentence_mapping.getKey();
@@ -127,7 +156,7 @@ public class RevisionCompare {
             Set<String> set = new HashSet<>();
             sectionToReferencesAdded.put(section, set);
         }
-        if (!sectionToReferencesRemoved.containsKey(section)) {
+        if (sectionToReferencesRemoved == null || !sectionToReferencesRemoved.containsKey(section)) {
             Set<String> set = new HashSet<>();
             sectionToReferencesRemoved.put(section, set);
         }
@@ -312,8 +341,11 @@ public class RevisionCompare {
         sectionToContentDifferences.put(section, contentDifferences);
 
         //reference differences
-        Set<String> urls = wiki_section.section_citations.values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
-        Set<String> compared_urls = wiki_section_compare.section_citations.values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
+//        Set<String> urls = wiki_section.section_citations.values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
+//        Set<String> compared_urls = wiki_section_compare.section_citations.values().stream().filter(c -> c.containsKey("url")).map(x -> x.get("url")).collect(Collectors.toSet());
+        List<String> urls = wiki_section.urls;
+        List<String> compared_urls = wiki_section.urls;
+
         for (String url : urls) {
             if (!compared_urls.contains(url)) {
                 referenceDifferences.add(url);
