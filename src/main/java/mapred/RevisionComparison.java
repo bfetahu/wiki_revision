@@ -92,6 +92,8 @@ public class RevisionComparison extends Configured implements Tool {
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
     public static class WikiRevisionFilterReducer extends Reducer<Text, BytesWritable, Text, Text> {
+        Text key_text = new Text(); //+
+        Text sb_text = new Text(); //+
         @Override
         protected void reduce(Text key, Iterable<BytesWritable> values, Context context) throws IOException, InterruptedException {
             Map<Long, WikiEntity> sorted_revisions = new TreeMap<>();
@@ -132,7 +134,9 @@ public class RevisionComparison extends Configured implements Tool {
                     sb.append(lines.next());
                     lines.remove();
                 }
-                context.write(new Text(key + "--" + i), new Text(sb.toString()));
+                key_text.set(key + "--" + i); //+
+                sb_text.set(sb.toString()); //+
+                context.write(key_text, sb_text); //!
             }
 
         }
@@ -143,6 +147,8 @@ public class RevisionComparison extends Configured implements Tool {
      * Read entity revisions into the WikipediaEntityRevision class.
      */
     public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, BytesWritable> {
+        Text text = new Text(); //+
+        BytesWritable bytes = new BytesWritable(); //+
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
@@ -153,7 +159,9 @@ public class RevisionComparison extends Configured implements Tool {
 
             if (revision_json.has("timestamp")) {
                 WikiEntity revision = parseEntity(value.toString());
-                context.write(new Text(title), new BytesWritable(revision.getBytes()));
+                text.set(title); //+
+                bytes.set(revision.getBytes(),0,revision.getBytes().length); //?
+                context.write(text, bytes); //!
             }
         }
     }
@@ -191,9 +199,15 @@ public class RevisionComparison extends Configured implements Tool {
 
         for (String section_key : entity.getSectionKeys()) {
             WikiSection section = entity.getSection(section_key);
-
             WikiSectionSimple section_simple = new WikiSectionSimple();
-            section_simple.sentences = getSentences(section.section_text);
+
+            //check for specific sections such as External Links and Notes
+            if (section_key.equals("External links") || section_key.equals("Notes")){
+                section_simple.sentences = getSentences(section.section_text, false);
+            } else{
+                section_simple.sentences = getSentences(section.section_text, true);
+            }
+
             entity_simple.sections.put(section_key, section_simple);
         }
 
@@ -207,27 +221,29 @@ public class RevisionComparison extends Configured implements Tool {
      * @param text
      * @return
      */
-    public static List<String> getSentences(String text) {
+    public static List<String> getSentences(String text, boolean running_text) {
         List<String> sentences = new ArrayList<>();
         text = StringEscapeUtils.escapeJson(text);
 
         //cleaning
         text = text.replace("...", ".");
-        text = text.replace("\n\n", ".");
-
-//        text = text.replace("�", "");
         text = text.replaceAll("\\{\\{[0-9]+\\}\\}", "");
-//        text = text.replaceAll("â€", "");
         text = text.replaceAll("\\[|\\]", "");
 
-        //testing if newlines are used as sentence-splitters
-        text = StringEscapeUtils.unescapeJson(text); //?
-
-        for (String sentence : nlp.getDocumentSentences(text)) {
-            sentence = StringEscapeUtils.escapeJson(sentence); //?
-            sentence = sentence.replace("\\n", "");
-            if (sentence.length() > 3) {
-                sentences.add(sentence);
+        if (running_text) {
+            for (String sentence : nlp.getDocumentSentences(text)) {
+                sentence = sentence.replace("\\n", "");
+                if (sentence.length() > 3) {
+                    sentences.add(sentence);
+                }
+            }
+        } else{
+            text = StringEscapeUtils.unescapeJson(text);
+            String[] parts = text.split("\n");
+            for (String part : parts){
+                if (part.length() > 3) {
+                    sentences.add(part);
+                }
             }
         }
         return sentences;
