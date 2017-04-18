@@ -27,7 +27,7 @@ public class RevisionCompare {
     }
 
 
-    public String compareWithOldRevision(WikiEntity revision, WikiEntity lastRevision, boolean firstRevision) throws IOException {
+    public String compareWithOldRevision(WikiEntity revision, WikiEntity previousRevision, boolean firstRevision) throws IOException {
         //handle first version of article
         if (firstRevision){
             Map<String, List<Map.Entry<String, String>>> sectionToContentAdded = new HashMap<>();
@@ -61,8 +61,8 @@ public class RevisionCompare {
         Map<String, Set<String>> oldSectionsToNewSections = new HashMap<>();
         Map<String, Set<String>> newSectionsToOldSections = new HashMap<>();
 
-        computeSectionMappings(revision, lastRevision, newSectionsToOldSections);
-        computeSectionMappings(lastRevision, revision, oldSectionsToNewSections);
+        computeSectionMappings(revision, previousRevision, newSectionsToOldSections);
+        computeSectionMappings(previousRevision, revision, oldSectionsToNewSections);
 
         //for every section: map old sentences to new sentences, identify added and removed sentences
         Map<String, List<Map.Entry<String, String>>> sectionToContentAdded = new HashMap<>();
@@ -70,8 +70,8 @@ public class RevisionCompare {
         Map<String, Set<String>> sectionToReferencesAdded = new HashMap<>();
         Map<String, Set<String>> sectionToReferencesRemoved = new HashMap<>();
 
-        computeContentDifferences(newSectionsToOldSections, revision, lastRevision, sectionToContentAdded, sectionToReferencesAdded);
-        computeContentDifferences(oldSectionsToNewSections, lastRevision, revision, sectionToContentRemoved, sectionToReferencesRemoved);
+        computeContentDifferences(newSectionsToOldSections, revision, previousRevision, sectionToContentAdded, sectionToReferencesAdded);
+        computeContentDifferences(oldSectionsToNewSections, previousRevision, revision, sectionToContentRemoved, sectionToReferencesRemoved);
 
         StringBuffer sb = new StringBuffer();
 
@@ -130,35 +130,48 @@ public class RevisionCompare {
         }
 
         StringBuffer content_removed_string = new StringBuffer();
-        if (sectionToContentRemoved != null || sectionToContentRemoved.containsKey(section)) {
-            content_removed_string.append("[");
-            for (Map.Entry<String, String> sentence_mapping : sectionToContentRemoved.get(section)) {
-                String sentence = sentence_mapping.getKey();
-                String similar_sentence = "";
-                try {
-                    similar_sentence = sentence_mapping.getValue();
-                } catch (NullPointerException e) {
-
-                }
-                if (!content_removed_string.equals("[") && similar_sentence == null) {
-                    content_removed_string.append(";");
-                }
-                if (similar_sentence == null) {
-                    content_removed_string.append(sentence);
-                }
-            }
-            content_removed_string.append("]");
-        } else {
+        if (sectionToContentRemoved == null){
             content_removed_string.append("[]");
+        } else {
+            if (sectionToContentRemoved.containsKey(section)) {
+                content_removed_string.append("[");
+                for (Map.Entry<String, String> sentence_mapping : sectionToContentRemoved.get(section)) {
+                    String sentence = sentence_mapping.getKey();
+                    String similar_sentence = "";
+                    try {
+                        similar_sentence = sentence_mapping.getValue();
+                    } catch (NullPointerException e) {
+
+                    }
+                    if (!content_removed_string.equals("[") && similar_sentence == null) {
+                        content_removed_string.append(";");
+                    }
+                    if (similar_sentence == null) {
+                        content_removed_string.append(sentence);
+                    }
+                }
+                content_removed_string.append("]");
+            } else {
+                content_removed_string.append("[]");
+            }
         }
 
         if (!sectionToReferencesAdded.containsKey(section)) {
             Set<String> set = new HashSet<>();
             sectionToReferencesAdded.put(section, set);
         }
-        if (sectionToReferencesRemoved == null || !sectionToReferencesRemoved.containsKey(section)) {
-            Set<String> set = new HashSet<>();
-            sectionToReferencesRemoved.put(section, set);
+        StringBuffer references_removed_string = new StringBuffer();
+        if (sectionToReferencesRemoved == null || !sectionToReferencesRemoved.containsKey(section)){
+            references_removed_string.append("[]");
+        } else{
+            references_removed_string.append("[");
+            for (String reference : sectionToReferencesRemoved.get(section)) {
+                if (!references_removed_string.equals("[")){
+                    references_removed_string.append(",");
+                }
+                references_removed_string.append(reference);
+            }
+            references_removed_string.append("]");
         }
 
         if (content_added_string.length() > 2 || content_removed_string.length() > 2
@@ -176,7 +189,7 @@ public class RevisionCompare {
                     append("\t").append(revision.revision_id).append("\t").append(revision.timestamp).
                     append("\t").append(section_string).append("\t").append(content_added_string).
                     append("\t").append(content_removed_string).append("\t").append(sectionToReferencesAdded.get(section)).
-                    append("\t").append(sectionToReferencesRemoved.get(section)).append("\n");
+                    append("\t").append(references_removed_string).append("\n");
             output_for_section = sb.toString();
         }
         return output_for_section;
