@@ -1,10 +1,6 @@
 package mapred;
 
 import entities.WikiEntity;
-import entities.WikiSection;
-import entities.WikiSectionSimple;
-import entities.WikipediaEntity;
-import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -24,6 +20,7 @@ import org.json.XML;
 import revisions.RevisionCompare;
 import utils.FileUtils;
 import utils.NLPUtils;
+import utils.RevisionUtils;
 
 import java.io.IOException;
 import java.util.*;
@@ -94,6 +91,7 @@ public class RevisionComparison extends Configured implements Tool {
     public static class WikiRevisionFilterReducer extends Reducer<Text, BytesWritable, Text, Text> {
         Text key_text = new Text(); //+
         Text sb_text = new Text(); //+
+
         @Override
         protected void reduce(Text key, Iterable<BytesWritable> values, Context context) throws IOException, InterruptedException {
             Map<Long, WikiEntity> sorted_revisions = new TreeMap<>();
@@ -149,6 +147,7 @@ public class RevisionComparison extends Configured implements Tool {
     public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, BytesWritable> {
         Text text = new Text(); //+
         BytesWritable bytes = new BytesWritable(); //+
+
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
@@ -158,94 +157,11 @@ public class RevisionComparison extends Configured implements Tool {
             title = entity_json.has("title") ? entity_json.get("title").toString() : "";
 
             if (revision_json.has("timestamp")) {
-                WikiEntity revision = parseEntity(value.toString());
+                WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
                 text.set(title); //+
-                bytes.set(revision.getBytes(),0,revision.getBytes().length); //?
+                bytes.set(revision.getBytes(), 0, revision.getBytes().length); //?
                 context.write(text, bytes); //!
             }
         }
-    }
-
-    public static WikiEntity parseEntity(String value) {
-        JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
-        JSONObject revision_json = entity_json.getJSONObject("revision");
-        JSONObject contributor_json = revision_json.getJSONObject("contributor");
-        JSONObject text_json = revision_json.getJSONObject("text");
-        //get the child nodes
-        String title = "", user_id = "", user = "", text = "";
-        title = entity_json.has("title") ? entity_json.get("title").toString() : "";
-
-        user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
-        user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
-        user = contributor_json != null && contributor_json.has("username") ? contributor_json.get("username").toString() : "";
-
-        text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
-
-
-        WikipediaEntity entity = new WikipediaEntity();
-        entity.setTitle(title);
-        entity.setCleanReferences(true);
-        entity.setExtractReferences(true);
-        entity.setMainSectionsOnly(false);
-        entity.setSplitSections(true);
-        entity.setContent(text);
-
-        //extract the section sentences.
-        WikiEntity entity_simple = new WikiEntity();
-        entity_simple.revision_id = revision_json.getLong("id");
-        entity_simple.timestamp = revision_json.get("timestamp").toString();
-        entity_simple.title = title;
-        entity_simple.user_id = user_id;
-
-        for (String section_key : entity.getSectionKeys()) {
-            WikiSection section = entity.getSection(section_key);
-            WikiSectionSimple section_simple = new WikiSectionSimple();
-
-            //check for specific sections such as External Links and Notes
-            if (section_key.equals("External links") || section_key.equals("Notes")){
-                section_simple.sentences = getSentences(section.section_text, false);
-            } else{
-                section_simple.sentences = getSentences(section.section_text, true);
-            }
-
-            entity_simple.sections.put(section_key, section_simple);
-        }
-
-        return entity_simple;
-    }
-
-
-    /**
-     * Construct the sentence list for each entity sections.
-     *
-     * @param text
-     * @return
-     */
-    public static List<String> getSentences(String text, boolean running_text) {
-        List<String> sentences = new ArrayList<>();
-        text = StringEscapeUtils.escapeJson(text);
-
-        //cleaning
-        text = text.replace("...", ".");
-        text = text.replaceAll("\\{\\{[0-9]+\\}\\}", "");
-        text = text.replaceAll("\\[|\\]", "");
-
-        if (running_text) {
-            for (String sentence : nlp.getDocumentSentences(text)) {
-                sentence = sentence.replace("\\n", "");
-                if (sentence.length() > 3) {
-                    sentences.add(sentence);
-                }
-            }
-        } else{
-            text = StringEscapeUtils.unescapeJson(text);
-            String[] parts = text.split("\n");
-            for (String part : parts){
-                if (part.length() > 3) {
-                    sentences.add(part);
-                }
-            }
-        }
-        return sentences;
     }
 }
