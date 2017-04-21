@@ -150,6 +150,7 @@ public class RevisionComparison extends Configured implements Tool {
 
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+
             JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
             JSONObject revision_json = entity_json.getJSONObject("revision");
             //get the child nodes
