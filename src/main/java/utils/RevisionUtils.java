@@ -60,12 +60,12 @@ public class RevisionUtils {
 
             section_simple.section_text = section.section_text;
 
-//            //check for specific sections such as External Links and Notes
-//            if (section_key.equals("External links") || section_key.equals("Notes")) {
-//                section_simple.sentences = getSentences(section.section_text, false, nlp);
-//            } else {
-//                section_simple.sentences = getSentences(section.section_text, true, nlp);
-//            }
+            //check for specific sections such as External Links and Notes
+            if (section_key.equals("External links") || section_key.equals("Notes")) {
+                section_simple.sentences = getSentences(section.section_text, false, nlp);
+            } else {
+                section_simple.sentences = getSentences(section.section_text, true, nlp);
+            }
 
             //assign the URLs from the citations to the section
             for (int cite_id : section.getSectionCitations().keySet()) {
@@ -75,8 +75,8 @@ public class RevisionUtils {
                         append(")").toString();
                 section_simple.urls.add(url_type);
             }
-//            section_simple.generateSectionBoW();
-//            section_simple.generateSentenceBoW();
+            section_simple.generateSectionBoW();
+            section_simple.generateSentenceBoW();
             entity_simple.sections.put(section_key, section_simple);
         }
 
