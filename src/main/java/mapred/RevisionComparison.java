@@ -31,6 +31,7 @@ import java.util.*;
  */
 public class RevisionComparison extends Configured implements Tool {
     public static NLPUtils nlp = new NLPUtils(2);
+    public static Set<String> stop_words = new HashSet<>();
 
     public static void main(String[] args) throws Exception {
         ToolRunner.run(new RevisionComparison(), args);
@@ -45,6 +46,7 @@ public class RevisionComparison extends Configured implements Tool {
         conf.setLong("mapreduce.task.timeout", milliSeconds);
         conf.setLong("mapred.task.timeout", milliSeconds);
         conf.set("mapred.output.compress", "true");
+        conf.set("mapred.child.java.opts", "-Xmx8G");
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
@@ -55,7 +57,9 @@ public class RevisionComparison extends Configured implements Tool {
             } else if (args[i].equals("-reducers")) {
                 num_reducers = Integer.valueOf(args[++i]);
             } else if (args[i].equals("-stop_words")) {
-                conf.set("stop_words", FileUtils.readText(args[++i]));
+                String stop_word_path = args[++i];
+                conf.set("stop_words", FileUtils.readText(stop_word_path));
+                stop_words = FileUtils.readIntoSet(stop_word_path, "\n", false);
             }
         }
         Job job = new Job(conf);
@@ -89,19 +93,15 @@ public class RevisionComparison extends Configured implements Tool {
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
     public static class WikiRevisionFilterReducer extends Reducer<Text, BytesWritable, Text, Text> {
-        Text key_text = new Text(); //+
-        Text sb_text = new Text(); //+
-
         @Override
         protected void reduce(Text key, Iterable<BytesWritable> values, Context context) throws IOException, InterruptedException {
+            RevisionCompare rc = new RevisionCompare();
             Map<Long, WikiEntity> sorted_revisions = new TreeMap<>();
             for (BytesWritable value : values) {
                 WikiEntity entity = new WikiEntity();
                 entity.readBytes(value.getBytes());
                 sorted_revisions.put(entity.revision_id, entity);
             }
-
-            RevisionCompare rc = new RevisionCompare(context.getConfiguration().get("stop_words"));
             WikiEntity prev = null;
             List<String> revision_difference_data = new ArrayList<>();
             for (long rev_id : sorted_revisions.keySet()) {
@@ -132,36 +132,26 @@ public class RevisionComparison extends Configured implements Tool {
                     sb.append(lines.next());
                     lines.remove();
                 }
-                key_text.set(key + "--" + i); //+
-                sb_text.set(sb.toString()); //+
-                context.write(key_text, sb_text); //!
+                context.write(new Text(key), new Text(sb.toString()));
             }
-
         }
-
     }
 
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
     public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, BytesWritable> {
-        Text text = new Text(); //+
-        BytesWritable bytes = new BytesWritable(); //+
-
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-
             JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
             JSONObject revision_json = entity_json.getJSONObject("revision");
             //get the child nodes
-            String title = "";
-            title = entity_json.has("title") ? entity_json.get("title").toString() : "";
+            String title = entity_json.has("title") ? entity_json.get("title").toString() : "";
 
             if (revision_json.has("timestamp")) {
                 WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
-                text.set(title); //+
-                bytes.set(revision.getBytes(), 0, revision.getBytes().length); //?
-                context.write(text, bytes); //!
+                String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
+                context.write(new Text(title + "\t" + year), new BytesWritable(revision.getBytes()));
             }
         }
     }
