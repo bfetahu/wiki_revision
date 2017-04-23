@@ -3,6 +3,7 @@ package revisions;
 import entities.WikiEntity;
 import entities.WikiSectionSimple;
 import gnu.trove.set.hash.TIntHashSet;
+import utils.RevisionUtils;
 
 import java.io.IOException;
 import java.util.*;
@@ -18,8 +19,8 @@ public class RevisionCompare {
     public static final double JACCARD_THRESHOLD_SENTENCE = 0.3;
 
     //map old section to new section, identify added and removed sections, result: section mappings
-    public Map<String, Set<String>> old_to_new_sections = new HashMap<>();
-    public Map<String, Set<String>> new_to_old_sections = new HashMap<>();
+    public Map<String, List<Map.Entry<String, Double>>> old_to_new_sections = new HashMap<>();
+    public Map<String, List<Map.Entry<String, Double>>> new_to_old_sections = new HashMap<>();
 
     //for every section: map old sentences to new sentences, identify added and removed sentences
     public Map<String, List<Map.Entry<String, String>>> section_content_added = new HashMap<>();
@@ -45,8 +46,8 @@ public class RevisionCompare {
             return outputInitialRevision(revision);
         }
 
-        computeSectionMappings(revision, prev_revision, new_to_old_sections);
-        computeSectionMappings(prev_revision, revision, old_to_new_sections);
+        RevisionUtils.computeSectionMappings(revision, prev_revision, new_to_old_sections, JACCARD_THRESHOLD_SECTION);
+        RevisionUtils.computeSectionMappings(prev_revision, revision, old_to_new_sections, JACCARD_THRESHOLD_SECTION);
 
         computeContentDifferences(new_to_old_sections, revision, prev_revision, section_content_added, section_ref_added);
         computeContentDifferences(old_to_new_sections, prev_revision, revision, section_content_removed, section_ref_removed);
@@ -68,6 +69,9 @@ public class RevisionCompare {
     }
 
 
+    /**
+     * Clear the data structures from the previous entries.
+     */
     public void clearDataStructures() {
         section_content_added.clear();
         section_ref_added.clear();
@@ -105,270 +109,136 @@ public class RevisionCompare {
         return sb.toString();
     }
 
-
+    /**
+     * Output the changes between two entity revisions.
+     *
+     * @param section
+     * @param section_added_content
+     * @param section_removed_content
+     * @param section_ref_added
+     * @param section_ref_removed
+     * @param deleted_section
+     * @param revision
+     * @return
+     * @throws IOException
+     */
     public String outputChanges(String section,
-                                Map<String, List<Map.Entry<String, String>>> sectionToContentAdded,
-                                Map<String, List<Map.Entry<String, String>>> sectionToContentRemoved,
-                                Map<String, Set<String>> sectionToReferencesAdded,
-                                Map<String, Set<String>> sectionToReferencesRemoved,
-                                boolean deletedSection, WikiEntity revision) throws IOException {
-
+                                Map<String, List<Map.Entry<String, String>>> section_added_content,
+                                Map<String, List<Map.Entry<String, String>>> section_removed_content,
+                                Map<String, Set<String>> section_ref_added,
+                                Map<String, Set<String>> section_ref_removed,
+                                boolean deleted_section, WikiEntity revision) throws IOException {
         String output_for_section = "";
 
         //create content strings
-        StringBuffer content_added_string = new StringBuffer();
-        if (sectionToContentAdded.containsKey(section)) {
-            content_added_string.append("[");
+        StringBuffer content_bf = new StringBuffer();
+        if (section_added_content.containsKey(section)) {
+            section_removed_content.get(section).forEach(s -> content_bf.append(s.getKey()).append("<SD>").append(s.getKey()).append(";"));
+        } else  content_bf.append("\t");
 
-            for (Map.Entry<String, String> sentence_mapping : sectionToContentAdded.get(section)) {
-                String sentence = sentence_mapping.getKey();
-                String similar_sentence = sentence_mapping.getValue() == null ? null : sentence_mapping.getValue();
-
-                if (!content_added_string.equals("[")) content_added_string.append(";");
-                if (similar_sentence == null) content_added_string.append(sentence);
-                else content_added_string.append(similar_sentence).append(" --> ").append(sentence);
-            }
-            content_added_string.append("]");
-        } else {
-            content_added_string.append("[]");
-        }
-
-        StringBuffer content_removed_string = new StringBuffer();
-        if (sectionToContentRemoved == null) content_removed_string.append("[]");
+        if (section_removed_content == null) content_bf.append("\t");
         else {
-            if (sectionToContentRemoved.containsKey(section)) {
-                content_removed_string.append("[");
-                for (Map.Entry<String, String> sentence_mapping : sectionToContentRemoved.get(section)) {
-                    String sentence = sentence_mapping.getKey();
-                    String similar_sentence = sentence_mapping.getValue() == null ? "" : sentence_mapping.getValue();
-
-                    if (content_removed_string.length() != 0 && similar_sentence == null) content_removed_string.append(";");
-                    if (similar_sentence == null) content_removed_string.append(sentence);
-                }
-                content_removed_string.append("]");
-            } else content_removed_string.append("[]");
+            if (section_removed_content.containsKey(section)) {
+                section_removed_content.get(section).forEach(s -> content_bf.append(s.getKey()).append("<SD>").append(s.getKey()).append(";"));
+            } else content_bf.append("\t");
         }
 
-        if (!sectionToReferencesAdded.containsKey(section)) {
-            sectionToReferencesAdded.put(section, new HashSet<>());
-        }
-        StringBuffer references_removed_string = new StringBuffer();
-        if (sectionToReferencesRemoved == null || !sectionToReferencesRemoved.containsKey(section))
-            references_removed_string.append("[]");
-        else {
-            references_removed_string.append("[");
-            for (String reference : sectionToReferencesRemoved.get(section)) {
-                if (references_removed_string.length() != 0) {
-                    references_removed_string.append(",");
-                }
-                references_removed_string.append(reference);
-            }
-            references_removed_string.append("]");
-        }
-
-        if (content_added_string.length() > 2 || content_removed_string.length() > 2 ||
-                sectionToReferencesAdded.get(section).size() > 0 || sectionToReferencesAdded.get(section).size() > 0) {
-            String section_string = "";
-            if (deletedSection) {
-                section_string = section + " (deleted section)";
-            } else {
-                section_string = section;
-            }
-
+        if (content_bf.length() > 2 || (section_ref_added.containsKey(section) || section_ref_added.get(section).size() > 0)) {
+            String section_string = deleted_section ? section + " (DELETED SECTION)" : section;
             StringBuffer sb = new StringBuffer();
             sb.append(revision.user_id).append("\t").append(revision.entity_id).append("\t").append(revision.title).
                     append("\t").append(revision.revision_id).append("\t").append(revision.timestamp).
-                    append("\t").append(section_string).append("\t").append(content_added_string).
-                    append("\t").append(content_removed_string).append("\t").append(sectionToReferencesAdded.get(section)).
-                    append("\t").append(references_removed_string).append("\n");
+                    append("\t").append(section_string).append("\t").append(content_bf).
+                    append("\t").append(section_ref_added.get(section)).
+                    append("\t").append(section_ref_removed.get(section)).append("\n");
             output_for_section = sb.toString();
         }
         return output_for_section;
     }
 
 
-    public void computeSectionMappings(WikiEntity revision, WikiEntity compared_revision, Map<String, Set<String>> sectionMapping) {
-        //get sections for both revisions
-        Set<String> revision_sections = revision.sections.keySet();
-        Set<String> compared_revision_sections = compared_revision.sections.keySet();
-
-        //check for differences between revisions
-        for (String section : revision_sections) {
-            if (compared_revision_sections.contains(section)) {
-                //section name is the same
-                Set<String> set = new HashSet<>();
-                set.add(section);
-                sectionMapping.put(section, set);
-            } else {
-                Set<String> set = new HashSet<>();
-                sectionMapping.put(section, set);
-
-                //check if section name has changed
-                for (String compared_section : compared_revision_sections) {
-                    //rename?
-                    if (revision_sections.contains(compared_section)) {
-                        continue;
-                    }
-
-                    //compute similarity between sections
-                    double jacdis = computeJaccardDistance(revision.sections.get(section).section_bow, compared_revision.sections.get(compared_section).section_bow);
-                    if (jacdis > JACCARD_THRESHOLD_SECTION) {
-                        sectionMapping.get(section).add(compared_section);
-                    }
-                }
-            }
-        }
-    }
-
-
-    public void computeContentDifferences(Map<String, Set<String>> sectionsToSections, WikiEntity revision, WikiEntity comparedRevision,
-                                          Map<String, List<Map.Entry<String, String>>> sectionToContentDifferences,
-                                          Map<String, Set<String>> sectionToReferenceDifferences) {
-        for (String section : sectionsToSections.keySet()) {
-            //compare with mapped sections, for now only with top section
-
-            //only one section to compare
-            if (sectionsToSections.get(section).size() == 1) {
-                compareSections(section, sectionsToSections.get(section).iterator().next(), revision, comparedRevision, sectionToContentDifferences, sectionToReferenceDifferences);
-            }
-
-            //no section to compare
-            if (sectionsToSections.get(section).size() == 0) {
-                //new section
-                compareSections(section, "", revision, comparedRevision, sectionToContentDifferences, sectionToReferenceDifferences);
-            }
-
-            //multiple sections to compare
-            if (sectionsToSections.get(section).size() > 1) {
-                Map<String, List<Map.Entry<String, String>>> contentDifferences_similarSections = new HashMap<>();
-                Map<String, Set<String>> newsRefDifferences_similarSections = new HashMap<>();
+    /**
+     * Compute the differences between two sections based on the content and references.
+     *
+     * @param section_mapping
+     * @param rev_a
+     * @param rev_b
+     * @param section_content_diff
+     * @param section_ref_diff
+     */
+    public void computeContentDifferences(Map<String, List<Map.Entry<String, Double>>> section_mapping,
+                                          WikiEntity rev_a, WikiEntity rev_b,
+                                          Map<String, List<Map.Entry<String, String>>> section_content_diff,
+                                          Map<String, Set<String>> section_ref_diff) {
+        for (String section : section_mapping.keySet()) {
+            if (section_mapping.get(section).size() == 1) {
+                compareSections(section, section_mapping.get(section).get(0).getKey(), rev_a, rev_b, section_content_diff, section_ref_diff);
+            } else if (section_mapping.get(section).size() > 1) {
+                Map<String, List<Map.Entry<String, String>>> content_sim_sections = new HashMap<>();
+                Map<String, Set<String>> ref_diff_sections = new HashMap<>();
 
                 //intersection of all comparison results
-                for (String similarSection : sectionsToSections.get(section)) {
-                    Map<String, List<Map.Entry<String, String>>> contentDifferences = new HashMap<>();
-                    Map<String, Set<String>> refDifferences = new HashMap<>();
-                    compareSections(section, similarSection, revision, comparedRevision, contentDifferences, refDifferences);
+                for (Map.Entry<String, Double> section_entry : section_mapping.get(section)) {
+                    Map<String, List<Map.Entry<String, String>>> content_diff = new HashMap<>();
+                    Map<String, Set<String>> ref_diff = new HashMap<>();
+                    compareSections(section, section_entry.getKey(), rev_a, rev_b, content_diff, ref_diff);
 
-                    contentDifferences_similarSections.put(similarSection, contentDifferences.get(section));
-                    newsRefDifferences_similarSections.put(similarSection, refDifferences.get(section));
+                    content_sim_sections.put(section_entry.getKey(), content_diff.get(section));
+                    ref_diff_sections.put(section_entry.getKey(), ref_diff.get(section));
                 }
 
-                List<Map.Entry<String, String>> contentDifferences_intersection = computeIntersection(contentDifferences_similarSections);
-                Set<String> newsRefDifferences_intersection = computeIntersectionSet(newsRefDifferences_similarSections);
+                List<Map.Entry<String, String>> content_diff_intersection = RevisionUtils.computeIntersection(content_sim_sections);
+                Set<String> ref_diff_intersection = RevisionUtils.computeIntersectionSet(ref_diff_sections);
 
-                sectionToContentDifferences.put(section, contentDifferences_intersection);
-                sectionToReferenceDifferences.put(section, newsRefDifferences_intersection);
+                section_content_diff.put(section, content_diff_intersection);
+                section_ref_diff.put(section, ref_diff_intersection);
             }
         }
     }
 
 
-    public List<Map.Entry<String, String>> computeIntersection(Map<String, List<Map.Entry<String, String>>> differences_similarSections) {
-        List<Map.Entry<String, String>> differences_intersection = new ArrayList<>();
-        String first_section = differences_similarSections.keySet().iterator().next();
-        for (Map.Entry<String, String> difference : differences_similarSections.get(first_section)) { //pick one random section, check if all other sections contain the same difference
-            boolean difference_in_all_sections = true;
-            for (String involved_section : differences_similarSections.keySet()) {
-                for (Map.Entry<String, String> involved_sentence : differences_similarSections.get(involved_section)) {
-                    if (!involved_sentence.equals(difference.getKey())) {
-                        difference_in_all_sections = false;
-                        break;
-                    }
-                }
-            }
-            if (difference_in_all_sections) {
-                differences_intersection.add(difference);
-            }
-        }
-        return differences_intersection;
-    }
-
-    public static Set<String> computeIntersectionSet(Map<String, Set<String>> differences_similarSections) {
-        Set<String> differences_intersection = new HashSet<>();
-
-        String first_section = differences_similarSections.keySet().iterator().next();
-        for (String difference : differences_similarSections.get(first_section)) { //pick one random section, check if all other sections contain the same difference
-            boolean difference_in_all_sections = true;
-            for (String involved_section : differences_similarSections.keySet()) {
-                if (!differences_similarSections.get(involved_section).contains(difference)) {
-                    difference_in_all_sections = false;
-                    break;
-                }
-            }
-            if (difference_in_all_sections) {
-                differences_intersection.add(difference);
-            }
-        }
-        return differences_intersection;
-    }
-
-
-    //computes differences between two sections
-    public void compareSections(String section, String comparedSection, WikiEntity revision, WikiEntity comparedRevision,
-                                Map<String, List<Map.Entry<String, String>>> sectionToContentDifferences, Map<String, Set<String>> sectionToReferenceDifferences) {
-        if (revision.sections.get(section) == null || comparedRevision.sections.get(comparedSection) == null) {
+    /**
+     * Compute the difference between two sections across two different revisions.
+     *
+     * @param section_a
+     * @param section_b
+     * @param rev_a
+     * @param rev_b
+     * @param section_content_diff
+     * @param section_ref_diff
+     */
+    public void compareSections(String section_a, String section_b, WikiEntity rev_a, WikiEntity rev_b,
+                                Map<String, List<Map.Entry<String, String>>> section_content_diff,
+                                Map<String, Set<String>> section_ref_diff) {
+        if (rev_a.sections.get(section_a) == null || rev_b.sections.get(section_b) == null) {
             return;
         }
 
-        List<Map.Entry<String, String>> contentDifferences = new ArrayList<>();
+        List<Map.Entry<String, String>> content_diff = new ArrayList<>();
 
-        WikiSectionSimple wiki_section = revision.sections.get(section);
-        WikiSectionSimple wiki_section_compare = comparedRevision.sections.get(comparedSection);
-
-        List<String> section_sentences = wiki_section.sentences;
-        List<String> compared_section_sentences = wiki_section_compare.sentences;
+        WikiSectionSimple wiki_section_a = rev_a.sections.get(section_a);
+        WikiSectionSimple wiki_section_b = rev_b.sections.get(section_b);
 
         //content differences
-        for (int i = 0; i < section_sentences.size(); i++) {
-            TIntHashSet sentence_bow = wiki_section.sentence_bow[i];
-            String sentence = section_sentences.get(i);
-            if (!compared_section_sentences.contains(sentence)) {
+        for (int i = 0; i < wiki_section_a.sentences.size(); i++) {
+            TIntHashSet sentence_bow = wiki_section_a.sentence_bow[i];
+            String sentence = wiki_section_a.sentences.get(i);
+            if (!wiki_section_b.sentences.contains(sentence)) {
                 //check if there is a similar sentence
-                int max_sim_sentence = findSimilarSentences(sentence_bow, wiki_section_compare.sentence_bow);
+                int max_sim_sentence = RevisionUtils.findMaxSimSentence(sentence_bow, wiki_section_b.sentence_bow, JACCARD_THRESHOLD_SENTENCE);
                 if (max_sim_sentence == -1) {
                     //sentence has been added or removed
-                    contentDifferences.add(new AbstractMap.SimpleEntry<>(sentence, null));
+                    content_diff.add(new AbstractMap.SimpleEntry<>(sentence, null));
                 } else {
                     //part of sentence is new, compare bag of words
-                    contentDifferences.add(new AbstractMap.SimpleEntry<>(sentence, compared_section_sentences.get(max_sim_sentence)));
+                    content_diff.add(new AbstractMap.SimpleEntry<>(sentence, wiki_section_b.sentences.get(max_sim_sentence)));
                 }
             }
         }
-        sectionToContentDifferences.put(section, contentDifferences);
+        section_content_diff.put(section_a, content_diff);
 
         //reference differences
-        Set<String> referenceDifferences = wiki_section.urls.stream().filter(s -> !wiki_section_compare.urls.contains(s)).collect(Collectors.toSet());
-        sectionToReferenceDifferences.put(section, referenceDifferences);
-    }
-
-
-    public  static int findSimilarSentences(TIntHashSet sentence, TIntHashSet[] sentenceSet) {
-        double mostSimilarSentenceSimilarity = 0.0;
-        int index = -1;
-        for (int i = 0; i < sentenceSet.length; i++) {
-            double jacdis = computeJaccardDistance(sentence, sentenceSet[i]);
-            if (jacdis > JACCARD_THRESHOLD_SENTENCE && jacdis > mostSimilarSentenceSimilarity) {
-
-                mostSimilarSentenceSimilarity = jacdis;
-                index = i;
-            }
-        }
-        return index;
-    }
-
-    /**
-     * Computes the Jaccard distance between two sets of values.
-     *
-     * @param values_a
-     * @param values_b
-     * @return
-     */
-    public static double computeJaccardDistance(TIntHashSet values_a, TIntHashSet values_b) {
-        if (values_a.isEmpty() || values_b.isEmpty()) {
-            return 0;
-        }
-        TIntHashSet common = new TIntHashSet(values_a);
-        common.retainAll(values_b);
-        return common.size() / (double) (values_a.size() + values_b.size() - common.size());
+        Set<String> ref_diff = wiki_section_a.urls.stream().filter(s -> !wiki_section_b.urls.contains(s)).collect(Collectors.toSet());
+        section_ref_diff.put(section_a, ref_diff);
     }
 }

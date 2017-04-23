@@ -15,8 +15,6 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.hedera.io.input.WikiRevisionTextInputFormat;
-import org.json.JSONObject;
-import org.json.XML;
 import revisions.RevisionCompare;
 import utils.FileUtils;
 import utils.NLPUtils;
@@ -143,16 +141,9 @@ public class RevisionComparison extends Configured implements Tool {
     public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, BytesWritable> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-            JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
-            JSONObject revision_json = entity_json.getJSONObject("revision");
-            //get the child nodes
-            String title = entity_json.has("title") ? entity_json.get("title").toString() : "";
-
-            if (revision_json.has("timestamp")) {
-                WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
-                String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
-                context.write(new Text(title + "\t" + year), new BytesWritable(revision.getBytes()));
-            }
+            WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
+            String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
+            context.write(new Text(revision.title + "\t" + year), new BytesWritable(revision.getBytes()));
         }
     }
 }
