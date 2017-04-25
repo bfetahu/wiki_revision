@@ -4,7 +4,6 @@ import entities.WikiEntity;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -44,7 +43,6 @@ public class RevisionComparison extends Configured implements Tool {
         conf.setLong("mapreduce.task.timeout", milliSeconds);
         conf.setLong("mapred.task.timeout", milliSeconds);
         conf.set("mapred.output.compress", "true");
-        conf.set("mapred.child.java.opts", "-Xmx8G");
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
@@ -71,7 +69,7 @@ public class RevisionComparison extends Configured implements Tool {
         job.setOutputValueClass(Text.class);
 
         job.setMapOutputKeyClass(Text.class);
-        job.setMapOutputValueClass(BytesWritable.class);
+        job.setMapOutputValueClass(WikiEntity.class);
 
         job.setMapperClass(WikiRevisionFilterMapper.class);
         job.setReducerClass(WikiRevisionFilterReducer.class);
@@ -90,20 +88,20 @@ public class RevisionComparison extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiRevisionFilterReducer extends Reducer<Text, BytesWritable, Text, Text> {
+    public static class WikiRevisionFilterReducer extends Reducer<Text, WikiEntity, Text, Text> {
         @Override
-        protected void reduce(Text key, Iterable<BytesWritable> values, Context context) throws IOException, InterruptedException {
+        protected void reduce(Text key, Iterable<WikiEntity> values, Context context) throws IOException, InterruptedException {
             RevisionCompare rc = new RevisionCompare();
+
             Map<Long, WikiEntity> sorted_revisions = new TreeMap<>();
-            for (BytesWritable value : values) {
-                WikiEntity entity = new WikiEntity();
-                entity.readBytes(value.getBytes());
-                sorted_revisions.put(entity.revision_id, entity);
+            for (WikiEntity value : values) {
+                sorted_revisions.put(value.revision_id, value);
             }
             WikiEntity prev = null;
             List<String> revision_difference_data = new ArrayList<>();
             for (long rev_id : sorted_revisions.keySet()) {
                 WikiEntity revision = sorted_revisions.get(rev_id);
+                revision.generateSectionBoW();
                 //return the revision difference data ending with a "\n"
                 String rev_comparison = "";
                 if (prev == null) {
@@ -138,12 +136,13 @@ public class RevisionComparison extends Configured implements Tool {
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, BytesWritable> {
+    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, WikiEntity> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
-            String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
-            context.write(new Text(revision.title + "\t" + year), new BytesWritable(revision.getBytes()));
+//            String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
+//            context.write(new Text(revision.title + "\t" + year), new BytesWritable(revision.getBytes()));
+            context.write(new Text(revision.title), revision);
         }
     }
 }

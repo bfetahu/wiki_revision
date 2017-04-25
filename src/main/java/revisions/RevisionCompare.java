@@ -128,13 +128,11 @@ public class RevisionCompare {
                                 Map<String, Set<String>> section_ref_added,
                                 Map<String, Set<String>> section_ref_removed,
                                 boolean deleted_section, WikiEntity revision) throws IOException {
-        String output_for_section = "";
-
         //create content strings
         StringBuffer content_bf = new StringBuffer();
         if (section_added_content.containsKey(section)) {
             section_removed_content.get(section).forEach(s -> content_bf.append(s.getKey()).append("<SD>").append(s.getKey()).append(";"));
-        } else  content_bf.append("\t");
+        } else content_bf.append("\t");
 
         if (section_removed_content == null) content_bf.append("\t");
         else {
@@ -143,17 +141,14 @@ public class RevisionCompare {
             } else content_bf.append("\t");
         }
 
-        if (content_bf.length() > 2 || (section_ref_added.containsKey(section) || section_ref_added.get(section).size() > 0)) {
-            String section_string = deleted_section ? section + " (DELETED SECTION)" : section;
-            StringBuffer sb = new StringBuffer();
-            sb.append(revision.user_id).append("\t").append(revision.entity_id).append("\t").append(revision.title).
-                    append("\t").append(revision.revision_id).append("\t").append(revision.timestamp).
-                    append("\t").append(section_string).append("\t").append(content_bf).
-                    append("\t").append(section_ref_added.get(section)).
-                    append("\t").append(section_ref_removed.get(section)).append("\n");
-            output_for_section = sb.toString();
-        }
-        return output_for_section;
+        String section_string = deleted_section ? section + " (DELETED SECTION)" : section;
+        StringBuffer sb = new StringBuffer();
+        sb.append(revision.user_id).append("\t").append(revision.entity_id).append("\t").append(revision.title).
+                append("\t").append(revision.revision_id).append("\t").append(revision.timestamp).
+                append("\t").append(section_string).append("\t").append(content_bf).
+                append("\t").append(section_ref_added.get(section)).
+                append("\t").append(section_ref_removed.get(section)).append("\n");
+        return sb.toString();
     }
 
 

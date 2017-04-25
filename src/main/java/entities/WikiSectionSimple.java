@@ -3,7 +3,8 @@ package entities;
 import gnu.trove.set.hash.TIntHashSet;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by besnik on 4/5/17.
@@ -22,15 +23,25 @@ public class WikiSectionSimple implements Serializable {
         section_bow = new TIntHashSet();
     }
 
+    public void generateBoW() {
+        if (section_bow.isEmpty()) {
+            generateSectionBoW();
+        }
+
+        if (sentence_bow == null) {
+            generateSentenceBoW();
+        }
+    }
+
     /**
      * Generate the BoW representation for each section.
      */
     public void generateSectionBoW() {
-        if(section_text == null){
+        if (section_text == null) {
             return;
         }
         String[] tmp_a = section_text.toLowerCase().split("\\s+");
-        for(String s:tmp_a){
+        for (String s : tmp_a) {
             section_bow.add(s.intern().hashCode());
         }
     }
@@ -39,7 +50,7 @@ public class WikiSectionSimple implements Serializable {
      * Generate the BoW for each sentence.
      */
     public void generateSentenceBoW() {
-        if(sentences == null){
+        if (sentences == null) {
             return;
         }
 
@@ -48,7 +59,7 @@ public class WikiSectionSimple implements Serializable {
             sentence_bow[i] = new TIntHashSet();
             String sentence = sentences.get(i);
             String[] tmp_a = sentence.toLowerCase().split("\\s+");
-            for(String s:tmp_a){
+            for (String s : tmp_a) {
                 sentence_bow[i].add(s.intern().hashCode());
             }
         }

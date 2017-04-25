@@ -1,5 +1,7 @@
 package entities;
 
+import org.apache.hadoop.io.Writable;
+
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -7,7 +9,7 @@ import java.util.Map;
 /**
  * Created by besnik on 4/5/17.
  */
-public class WikiEntity implements Serializable {
+public class WikiEntity implements Serializable, Writable {
     public long revision_id;
     public String user_id;
     public long entity_id;
@@ -18,6 +20,12 @@ public class WikiEntity implements Serializable {
 
     public WikiEntity() {
         sections = new HashMap<>();
+    }
+
+    public void generateSectionBoW() {
+        if (sections != null && !sections.isEmpty()) {
+            sections.keySet().forEach(s -> sections.get(s).generateBoW());
+        }
     }
 
     public byte[] getBytes() throws IOException {
@@ -45,5 +53,20 @@ public class WikiEntity implements Serializable {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+        byte[] bytes = getBytes();
+        out.writeInt(bytes.length);
+        out.write(bytes, 0, bytes.length);
+    }
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+        int length = in.readInt();
+        byte[] bytes = new byte[length];
+        in.readFully(bytes, 0, length);
+        readBytes(bytes);
     }
 }
