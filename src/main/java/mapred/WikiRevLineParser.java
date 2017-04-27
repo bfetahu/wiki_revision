@@ -66,8 +66,8 @@ public class WikiRevLineParser extends Configured implements Tool {
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
-        job.setMapOutputKeyClass(Text.class);
-        job.setMapOutputValueClass(Text .class);
+        job.setMapOutputKeyClass(LongWritable.class);
+        job.setMapOutputValueClass(Text.class);
 
         job.setMapperClass(WikiRevisionFilterMapper.class);
         job.setReducerClass(WikiRevisionFilterReducer.class);
@@ -86,9 +86,9 @@ public class WikiRevLineParser extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiRevisionFilterReducer extends Reducer<Text, Text, Text, Text> {
+    public static class WikiRevisionFilterReducer extends Reducer<LongWritable, Text, Text, Text> {
         @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+        protected void reduce(LongWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             for (Text revision : values) {
                 //write the output
                 context.write(null, revision);
@@ -148,13 +148,13 @@ public class WikiRevLineParser extends Configured implements Tool {
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, Text> {
+    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, LongWritable, Text> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
             String entity_text = printRevision(revision);
 
-            context.write(new Text(revision.title), new Text(entity_text));
+            context.write(new LongWritable(revision.revision_id), new Text(entity_text));
         }
     }
 

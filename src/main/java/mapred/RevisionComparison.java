@@ -140,9 +140,9 @@ public class RevisionComparison extends Configured implements Tool {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
-//            String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
-//            context.write(new Text(revision.title + "\t" + year), new BytesWritable(revision.getBytes()));
-            context.write(new Text(revision.title), revision);
+            String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
+            context.write(new Text(revision.title + "\t" + year), revision);
+//            context.write(new Text(revision.title), revision);
         }
     }
 }
