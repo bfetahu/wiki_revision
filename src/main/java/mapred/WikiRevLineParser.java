@@ -43,6 +43,7 @@ public class WikiRevLineParser extends Configured implements Tool {
         conf.setLong("mapreduce.task.timeout", milliSeconds);
         conf.setLong("mapred.task.timeout", milliSeconds);
         conf.set("mapred.output.compress", "true");
+        conf.set("mapred.child.java.opts", "8192m");
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
@@ -70,7 +71,6 @@ public class WikiRevLineParser extends Configured implements Tool {
         job.setMapOutputValueClass(Text.class);
 
         job.setMapperClass(WikiRevisionFilterMapper.class);
-        job.setReducerClass(WikiRevisionFilterReducer.class);
         job.setInputFormatClass(WikiRevisionTextInputFormat.class);
 
         FileInputFormat.setInputPaths(job, data_dir);
@@ -83,18 +83,6 @@ public class WikiRevLineParser extends Configured implements Tool {
         return 0;
     }
 
-    /**
-     * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
-     */
-    public static class WikiRevisionFilterReducer extends Reducer<LongWritable, Text, Text, Text> {
-        @Override
-        protected void reduce(LongWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            for (Text revision : values) {
-                //write the output
-                context.write(null, revision);
-            }
-        }
-    }
 
     /**
      * @param revision
@@ -120,16 +108,7 @@ public class WikiRevLineParser extends Configured implements Tool {
             //add the section title and its text.
             sb.append("{\"section\":\"").append(StringEscapeUtils.escapeJson(section)).
                     append("\",\"section_text\":\"").append(StringEscapeUtils.escapeJson(wiki_section.section_text)).append("\"");
-//                    append("\", \"sentences\":[");
 
-//            //add the sentences
-//            for (int i = 0; i < wiki_section.sentences.size(); i++) {
-//                if (i != 0) {
-//                    sb.append(",");
-//                }
-//                sb.append("\"").append(StringEscapeUtils.escapeJson(wiki_section.sentences.get(i))).append("\"");
-//            }
-//            sb.append("]");
             //add the urls
             sb.append(",\"urls\":[");
             for (int i = 0; i < wiki_section.urls.size(); i++) {
@@ -154,7 +133,7 @@ public class WikiRevLineParser extends Configured implements Tool {
             WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
             String entity_text = printRevision(revision);
 
-            context.write(new LongWritable(revision.revision_id), new Text(entity_text));
+            context.write(key, new Text(entity_text));
         }
     }
 

@@ -43,7 +43,7 @@ public class RevisionComparison extends Configured implements Tool {
         conf.setLong("mapreduce.task.timeout", milliSeconds);
         conf.setLong("mapred.task.timeout", milliSeconds);
         conf.set("mapred.output.compress", "true");
-
+        conf.set("mapred.child.java.opts", "8192m");
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
             if (args[i].equals("-data_dir")) {
@@ -101,7 +101,6 @@ public class RevisionComparison extends Configured implements Tool {
             List<String> revision_difference_data = new ArrayList<>();
             for (long rev_id : sorted_revisions.keySet()) {
                 WikiEntity revision = sorted_revisions.get(rev_id);
-                revision.generateSectionBoW();
                 //return the revision difference data ending with a "\n"
                 String rev_comparison = "";
                 if (prev == null) {
@@ -140,9 +139,7 @@ public class RevisionComparison extends Configured implements Tool {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
-            String year = revision.timestamp.substring(0, revision.timestamp.indexOf("-"));
-            context.write(new Text(revision.title + "\t" + year), revision);
-//            context.write(new Text(revision.title), revision);
+            context.write(new Text(revision.title), revision);
         }
     }
 }
