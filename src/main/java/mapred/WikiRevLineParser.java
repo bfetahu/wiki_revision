@@ -10,7 +10,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
-import utils.FileUtils;
 import utils.NLPUtils;
 import utils.RevisionUtils;
 
@@ -29,8 +28,8 @@ public class WikiRevLineParser {
 
     public static void main(String[] args) throws Exception {
         WikiRevLineParser rev = new WikiRevLineParser();
-        rev.test(FileUtils.getFileReader("/Users/besnik/Desktop/rev_1.txt"));
-//        rev.run(args);
+//        rev.test(FileUtils.getFileReader("/Users/besnik/Desktop/rev_1.txt"));
+        rev.run(args);
     }
 
     public void run(String[] args) throws Exception {
@@ -63,7 +62,7 @@ public class WikiRevLineParser {
             Runnable r = () -> {
                 try {
                     //output the data into HDFs
-                    Path out_file_path = new Path("hdfs://nameservice1/" + out_dir_f + "/" + file.getPath().getName());
+                    Path out_file_path = new Path("hdfs://nameservice1/" + out_dir_f + "/" + file.getPath().getName().replace(".bz2", ""));
                     if (fs.exists(out_file_path)) {
                         fs.delete(out_file_path, true);
                     }
@@ -79,8 +78,9 @@ public class WikiRevLineParser {
                     StringBuffer out_sb = new StringBuffer();
 
                     System.out.println("Processing  file " + file.getPath());
-
+                    int count = 0;
                     boolean is_revision_data = false, is_entity = false;
+
                     while ((line = br.readLine()) != null) {
                         line = line.trim();
                         if (line.isEmpty() || line.equals("</page>")) {
@@ -99,7 +99,7 @@ public class WikiRevLineParser {
                             revision_data.append(line).append("\n");
                             is_revision_data = false;
 
-                            processRevisionData(entity_data, revision_data, out_sb, br_out);
+                            count = processRevisionData(entity_data, revision_data, out_sb, br_out, count, out_file_path.getName());
                             continue;
                         }
 
@@ -108,7 +108,7 @@ public class WikiRevLineParser {
                         }
                     }
                     //flush the remaining revision
-                    processRevisionData(entity_data, revision_data, out_sb, br_out);
+                    count = processRevisionData(entity_data, revision_data, out_sb, br_out, count, out_file_path.getName());
 
                     br_out.close();
                     br.close();
@@ -132,6 +132,7 @@ public class WikiRevLineParser {
         StringBuffer out_sb = new StringBuffer();
 
         boolean is_revision_data = false, is_entity = false;
+        int count = 0;
         while ((line = br.readLine()) != null) {
             line = line.trim();
             if (line.isEmpty() || line.equals("</page>")) {
@@ -149,7 +150,7 @@ public class WikiRevLineParser {
                 revision_data.append(line).append("\n");
                 is_revision_data = false;
 
-                processRevisionData(entity_data, revision_data, out_sb, null);
+                count = processRevisionData(entity_data, revision_data, out_sb, null, count, "");
                 continue;
             }
 
@@ -158,7 +159,7 @@ public class WikiRevLineParser {
             }
         }
         //flush the remaining revision
-        processRevisionData(entity_data, revision_data, out_sb, null);
+        processRevisionData(entity_data, revision_data, out_sb, null, count, "");
     }
 
     /**
@@ -188,22 +189,24 @@ public class WikiRevLineParser {
      * @param br_out
      * @throws IOException
      */
-    public void processRevisionData(StringBuffer entity_data, StringBuffer revision_data, StringBuffer out_sb, BufferedWriter br_out) throws IOException {
+    public int processRevisionData(StringBuffer entity_data, StringBuffer revision_data, StringBuffer out_sb, BufferedWriter br_out, int count, String file_name) throws IOException {
         //process the revision
-        WikiEntity revision = RevisionUtils.parseEntity(entity_data.toString() + "\n" + revision_data.toString() + "\n</page>", nlp);
+        WikiEntity revision = RevisionUtils.parseEntity(entity_data.toString() + "\n" + revision_data.append("\n</page>"), nlp);
         if (revision == null) {
-            return;
+            return count;
         }
         String entity_text = printRevision(revision);
         out_sb.append(entity_text).append("\n");
         revision_data.delete(0, revision_data.length());
 
-        System.out.printf("Finished processing entity %s with revision id %d\n", revision.title, revision.revision_id);
-//        if (out_sb.length() > 100000) {
-//            br_out.write(out_sb.toString());
-//            out_sb.delete(0, out_sb.length());
-//        }
-        System.out.println(entity_text);
+        if (out_sb.length() > 10000000) {
+            br_out.write(out_sb.toString());
+            out_sb.delete(0, out_sb.length());
+
+            System.out.printf("Finished processing %d revisions so far for file %s.\n", count, file_name);
+        }
+        count++;
+        return count;
     }
 
     /**

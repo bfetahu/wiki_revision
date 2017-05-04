@@ -119,7 +119,7 @@ public class WikiEntity implements Serializable, Writable {
 
         if (!has_sections) {
             root_section.section_text = entity_text;
-            sections.put(root_section.section_text, root_section);
+            sections.put(root_section.section_label, root_section);
         }
     }
 
