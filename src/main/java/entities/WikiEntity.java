@@ -2,8 +2,6 @@ package entities;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.io.Writable;
-import utils.NLPUtils;
-import utils.RevisionUtils;
 import utils.WikiUtils;
 
 import java.io.*;
@@ -22,41 +20,13 @@ public class WikiEntity implements Serializable, Writable {
     public Map<Integer, Map<String, String>> entity_citations;
 
     //the sections in this Wikipedia entity page.
-    public WikiSection root_sections;
-    public Map<String, entities.WikiSectionSimple> sections;
+    public WikiSectionSimple root_section;
+    public Map<String, WikiSectionSimple> sections;
 
     public WikiEntity() {
-        root_sections = new entities.WikiSection();
+        root_section = new WikiSectionSimple();
         entity_citations = new HashMap<>();
         sections = new HashMap<>();
-    }
-
-    public void setSections(NLPUtils nlp) {
-        Set<String> section_keys = getSectionKeys();
-        for (String section_key : section_keys) {
-            WikiSection section = getSection(section_key);
-            entities.WikiSectionSimple section_simple = new entities.WikiSectionSimple();
-
-            section_simple.section_text = section.section_text;
-
-            //check for specific sections such as External Links and Notes
-            if (section_key.equals("External links") || section_key.equals("Notes")) {
-                section_simple.sentences = RevisionUtils.getSentences(section.section_text, false, nlp);
-            } else {
-                section_simple.sentences = RevisionUtils.getSentences(section.section_text, true, nlp);
-            }
-        }
-        root_sections = null;
-    }
-
-    /**
-     * Get a single section based on the section label. In case this section does not exist NULL is returned.
-     *
-     * @param section
-     * @return
-     */
-    public entities.WikiSection getSection(String section) {
-        return root_sections.findSection(section);
     }
 
 
@@ -69,7 +39,7 @@ public class WikiEntity implements Serializable, Writable {
      * @param wiki_content
      */
     public void setContent(String wiki_content) {
-        //remove the infobox
+        //remove the Infobox
         this.content = wiki_content;
         content = WikiUtils.removeInfoboxInformaion(content);
 
@@ -79,17 +49,6 @@ public class WikiEntity implements Serializable, Writable {
         splitEntityIntoSections(content);
     }
 
-
-    /**
-     * Return all the section labels.
-     *
-     * @return
-     */
-    public Set<String> getSectionKeys() {
-        Set<String> keys = new HashSet<>();
-        root_sections.getSectionKeys(keys);
-        return keys;
-    }
 
     /**
      * Splits the entity page text into chunks of text where each chunk belongs to a section. We begin with the main section
@@ -103,8 +62,8 @@ public class WikiEntity implements Serializable, Writable {
         Pattern section_pattern = Pattern.compile("={2,}(.*?)={2,}");
         Matcher section_matcher = section_pattern.matcher(entity_text);
 
-        root_sections = new entities.WikiSection();
-        root_sections.section_label = "MAIN_SECTION";
+        root_section = new WikiSectionSimple();
+        root_section.section_label = "MAIN_SECTION";
 
         String section_name = "MAIN_SECTION";
 
@@ -129,23 +88,26 @@ public class WikiEntity implements Serializable, Writable {
                     continue;
                 }
 
-                entities.WikiSection section = new entities.WikiSection();
+                WikiSectionSimple section = new WikiSectionSimple();
                 section.section_label = section_name;
                 section.section_text = section_text.replaceAll("\n+", "\n");
 
                 if (current_section_level == 0 && section_name.equals("MAIN_SECTION")) {
-                    root_sections = section;
-                    root_sections.section_level = 1;
+                    root_section = section;
+                    root_section.section_level = 1;
 
-                    prev_section_entries.add(new AbstractMap.SimpleEntry<>(root_sections.section_level, root_sections.section_label));
+                    prev_section_entries.add(new AbstractMap.SimpleEntry<>(root_section.section_level, root_section.section_label));
+                    sections.put(root_section.section_label, root_section);
                 } else {
                     String parent_section_label = getParentSection(prev_section_entries, current_section_level);
-                    entities.WikiSection root_section = entities.WikiSection.findSection(parent_section_label, root_sections, current_section_level);
+                    WikiSectionSimple root_section = WikiSectionSimple.findSection(parent_section_label, this.root_section, current_section_level);
                     section.section_level = root_section.section_level + 1;
                     root_section.child_sections.add(section);
 
                     AbstractMap.SimpleEntry<Integer, String> section_entry = new AbstractMap.SimpleEntry<>(section.section_level, section.section_label);
                     prev_section_entries.add(new AbstractMap.SimpleEntry<>(section_entry));
+
+                    sections.put(section.section_label, section);
                 }
             }
 
@@ -156,7 +118,8 @@ public class WikiEntity implements Serializable, Writable {
         }
 
         if (!has_sections) {
-            root_sections.section_text = entity_text;
+            root_section.section_text = entity_text;
+            sections.put(root_section.section_text, root_section);
         }
     }
 
@@ -220,4 +183,20 @@ public class WikiEntity implements Serializable, Writable {
         in.readFully(bytes, 0, length);
         readBytes(bytes);
     }
+
+    /**
+     * Gets all the section keys.
+     */
+    public Set<String> getSectionKeys() {
+        Set<String> keys = new HashSet<>();
+        keys.add(root_section.section_label);
+
+        if (!root_section.child_sections.isEmpty()) {
+            for (WikiSectionSimple child_section : root_section.child_sections) {
+                keys.addAll(child_section.getSectionKeys());
+            }
+        }
+        return keys;
+    }
+
 }

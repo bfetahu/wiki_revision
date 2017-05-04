@@ -132,38 +132,39 @@ public class RevisionUtils {
      * @return
      */
     public static WikiEntity parseEntity(String value, NLPUtils nlp) {
-        JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
-        JSONObject revision_json = entity_json.getJSONObject("revision");
-        JSONObject contributor_json = revision_json.getJSONObject("contributor");
-        JSONObject text_json = revision_json.getJSONObject("text");
-        //get the child nodes
-        String title = "", user_id = "", text = "";
-        title = entity_json.has("title") ? entity_json.get("title").toString() : "";
+        try {
+            JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
+            JSONObject revision_json = entity_json.getJSONObject("revision");
+            JSONObject contributor_json = revision_json.getJSONObject("contributor");
+            JSONObject text_json = revision_json.getJSONObject("text");
+            //get the child nodes
+            String title, user_id, text;
+            title = entity_json.has("title") ? entity_json.get("title").toString() : "";
 
-        user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
-        user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
+            user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
+            user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
 
-        text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
+            text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
 
 
-        WikiEntity entity = new WikiEntity();
-        entity.title = (title);
-        entity.revision_id = revision_json.getLong("id");
-        entity.timestamp = revision_json.get("timestamp").toString();
-        entity.title = title;
-        entity.user_id = user_id;
-        entity.setContent(text);
+            WikiEntity entity = new WikiEntity();
+            entity.title = (title);
+            entity.revision_id = revision_json.getLong("id");
+            entity.timestamp = revision_json.get("timestamp").toString();
+            entity.title = title;
+            entity.user_id = user_id;
+            entity.setContent(text);
 
-        entity.setSections(nlp);
-        for (String section_key : entity.sections.keySet()) {
-            WikiSectionSimple section_simple = entity.sections.get(section_key);
-            section_simple.setSectionCitations(entity.entity_citations);
+            for (String section_key : entity.sections.keySet()) {
+                WikiSectionSimple section_simple = entity.sections.get(section_key);
+                section_simple.setSectionCitations(entity.entity_citations);
+            }
 
-            section_simple.generateSectionBoW();
-            section_simple.generateSentenceBoW();
+            return entity;
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-
-        return entity;
+        return null;
     }
 
 

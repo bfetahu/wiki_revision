@@ -2,89 +2,213 @@ package mapred;
 
 import entities.WikiEntity;
 import entities.WikiSectionSimple;
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.util.Tool;
-import org.apache.hadoop.util.ToolRunner;
-import org.hedera.io.input.WikiRevisionTextInputFormat;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.CompressionCodecFactory;
 import utils.FileUtils;
 import utils.NLPUtils;
 import utils.RevisionUtils;
 
-import java.io.IOException;
+import java.io.*;
+import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 
 /**
  * Created by besnik on 3/15/17.
  */
-public class WikiRevLineParser extends Configured implements Tool {
+public class WikiRevLineParser {
     public static NLPUtils nlp = new NLPUtils(2);
 
     public static void main(String[] args) throws Exception {
-        ToolRunner.run(new WikiRevLineParser(), args);
+        WikiRevLineParser rev = new WikiRevLineParser();
+        rev.test(FileUtils.getFileReader("/Users/besnik/Desktop/rev_1.txt"));
+//        rev.run(args);
     }
 
-    @Override
-    public int run(String[] args) throws Exception {
-        Configuration conf = getConf();
-        int num_reducers = 10;
-        long milliSeconds = 10000 * 60 * 60;// <default is 600000, likewise can give any value)
-
-        conf.setLong("mapreduce.task.timeout", milliSeconds);
-        conf.setLong("mapred.task.timeout", milliSeconds);
-        conf.set("mapred.output.compress", "true");
-        conf.set("mapred.child.java.opts", "8192m");
-
+    public void run(String[] args) throws Exception {
         String data_dir = "", out_dir = "";
+        int num_threads = 10;
         for (int i = 0; i < args.length; i++) {
             if (args[i].equals("-data_dir")) {
                 data_dir = args[++i];
             } else if (args[i].equals("-out_dir")) {
                 out_dir = args[++i];
-            } else if (args[i].equals("-reducers")) {
-                num_reducers = Integer.valueOf(args[++i]);
-            } else if (args[i].equals("-stop_words")) {
-                conf.set("stop_words", FileUtils.readText(args[++i]));
+            } else if (args[i].equals("-num_threads")) {
+                num_threads = Integer.valueOf(args[++i]);
             }
         }
-        Job job = new Job(conf);
 
-        job.setNumReduceTasks(num_reducers);
+        Configuration conf = new Configuration();
+        conf.addResource(new Path("/etc/hadoop/conf/core-site.xml"));
+        conf.addResource(new Path("/etc/hadoop/conf/hdfs-site.xml"));
 
-        job.setJarByClass(WikiRevLineParser.class);
-        job.setJobName(WikiRevLineParser.class.getName() + "-" + System.currentTimeMillis());
+        CompressionCodecFactory factory = new CompressionCodecFactory(conf);
 
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(Text.class);
+        Path pt = new Path(data_dir);
+        FileSystem fs = FileSystem.get(conf);
+        FileStatus[] files = fs.listStatus(pt);
 
-        job.setMapOutputKeyClass(LongWritable.class);
-        job.setMapOutputValueClass(Text.class);
 
-        job.setMapperClass(WikiRevisionFilterMapper.class);
-        job.setInputFormatClass(WikiRevisionTextInputFormat.class);
+        ExecutorService threadPool = Executors.newFixedThreadPool(num_threads);
+        final String out_dir_f = out_dir;
+        Arrays.asList(files).parallelStream().forEach(file -> {
+            Runnable r = () -> {
+                try {
+                    //output the data into HDFs
+                    Path out_file_path = new Path("hdfs://nameservice1/" + out_dir_f + "/" + file.getPath().getName());
+                    if (fs.exists(out_file_path)) {
+                        fs.delete(out_file_path, true);
+                    }
+                    OutputStream os = fs.create(out_file_path);
+                    BufferedWriter br_out = new BufferedWriter(new OutputStreamWriter(os));
 
-        FileInputFormat.setInputPaths(job, data_dir);
 
-        Path outPath = new Path(out_dir);
-        FileOutputFormat.setOutputPath(job, outPath);
-        outPath.getFileSystem(conf).delete(outPath, true);
+                    BufferedReader br = getReader(file.getPath(), fs, factory);
+                    String line;
 
-        job.waitForCompletion(true);
-        return 0;
+                    StringBuffer revision_data = new StringBuffer();
+                    StringBuffer entity_data = new StringBuffer();
+                    StringBuffer out_sb = new StringBuffer();
+
+                    System.out.println("Processing  file " + file.getPath());
+
+                    boolean is_revision_data = false, is_entity = false;
+                    while ((line = br.readLine()) != null) {
+                        line = line.trim();
+                        if (line.isEmpty() || line.equals("</page>")) {
+                            continue;
+                        }
+
+                        if (line.equals("<page>")) {
+                            is_entity = true;
+                            entity_data.delete(0, entity_data.length());
+                            entity_data.append(line).append("\n");
+                        } else if (line.equals("<revision>")) {
+                            is_revision_data = true;
+                        } else if (!is_revision_data && is_entity) {
+                            entity_data.append(line).append("\n");
+                        } else if (line.equals("</revision>")) {
+                            revision_data.append(line).append("\n");
+                            is_revision_data = false;
+
+                            processRevisionData(entity_data, revision_data, out_sb, br_out);
+                            continue;
+                        }
+
+                        if (is_revision_data) {
+                            revision_data.append(line).append("\n");
+                        }
+                    }
+                    //flush the remaining revision
+                    processRevisionData(entity_data, revision_data, out_sb, br_out);
+
+                    br_out.close();
+                    br.close();
+                    System.out.println("Finished processing file " + file.getPath());
+                } catch (Exception e) {
+                    System.out.println("Error processing file " + file.getPath().toString() + " with message " + e.getMessage());
+                    e.printStackTrace();
+                }
+            };
+            threadPool.submit(r);
+        });
+        threadPool.shutdown();
+        threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+    }
+
+    public void test(BufferedReader br) throws IOException {
+        String line;
+
+        StringBuffer revision_data = new StringBuffer();
+        StringBuffer entity_data = new StringBuffer();
+        StringBuffer out_sb = new StringBuffer();
+
+        boolean is_revision_data = false, is_entity = false;
+        while ((line = br.readLine()) != null) {
+            line = line.trim();
+            if (line.isEmpty() || line.equals("</page>")) {
+                continue;
+            }
+            if (line.equals("<page>")) {
+                is_entity = true;
+                entity_data.delete(0, entity_data.length());
+                entity_data.append(line).append("\n");
+            } else if (line.equals("<revision>")) {
+                is_revision_data = true;
+            } else if (!is_revision_data && is_entity) {
+                entity_data.append(line).append("\n");
+            } else if (line.equals("</revision>")) {
+                revision_data.append(line).append("\n");
+                is_revision_data = false;
+
+                processRevisionData(entity_data, revision_data, out_sb, null);
+                continue;
+            }
+
+            if (is_revision_data) {
+                revision_data.append(line).append("\n");
+            }
+        }
+        //flush the remaining revision
+        processRevisionData(entity_data, revision_data, out_sb, null);
+    }
+
+    /**
+     * Get file reader.
+     */
+    public static BufferedReader getReader(Path path, FileSystem fs, CompressionCodecFactory factory) throws IOException, CompressorException {
+        InputStream stream;
+        CompressionCodec codec = factory.getCodec(path);
+
+        // check if we have a compression codec we need to use
+        if (codec != null) {
+            stream = codec.createInputStream(fs.open(path));
+        } else {
+            stream = fs.open(path);
+        }
+        BufferedReader br = new BufferedReader(new InputStreamReader(stream));
+        return br;
     }
 
 
     /**
+     * Print the revision data into a file.
+     *
+     * @param entity_data
+     * @param revision_data
+     * @param out_sb
+     * @param br_out
+     * @throws IOException
+     */
+    public void processRevisionData(StringBuffer entity_data, StringBuffer revision_data, StringBuffer out_sb, BufferedWriter br_out) throws IOException {
+        //process the revision
+        WikiEntity revision = RevisionUtils.parseEntity(entity_data.toString() + "\n" + revision_data.toString() + "\n</page>", nlp);
+        if (revision == null) {
+            return;
+        }
+        String entity_text = printRevision(revision);
+        out_sb.append(entity_text).append("\n");
+        revision_data.delete(0, revision_data.length());
+
+        System.out.printf("Finished processing entity %s with revision id %d\n", revision.title, revision.revision_id);
+//        if (out_sb.length() > 100000) {
+//            br_out.write(out_sb.toString());
+//            out_sb.delete(0, out_sb.length());
+//        }
+        System.out.println(entity_text);
+    }
+
+    /**
+     * Print the revision information to output into a JSON line format.
+     *
      * @param revision
      * @return
      */
@@ -123,18 +247,4 @@ public class WikiRevLineParser extends Configured implements Tool {
         sb.append("]}");
         return sb.toString();
     }
-
-    /**
-     * Read entity revisions into the WikipediaEntityRevision class.
-     */
-    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, LongWritable, Text> {
-        @Override
-        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-            WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
-            String entity_text = printRevision(revision);
-
-            context.write(key, new Text(entity_text));
-        }
-    }
-
 }

@@ -4,10 +4,7 @@ import gnu.trove.set.hash.TIntHashSet;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,7 +20,7 @@ public class WikiSectionSimple implements Serializable {
     public List<String> sentences;
 
     //the child sections
-    public List<entities.WikiSection> child_sections;
+    public List<WikiSectionSimple> child_sections;
 
     public List<String> urls;
 
@@ -40,7 +37,25 @@ public class WikiSectionSimple implements Serializable {
         urls = new ArrayList<>();
     }
 
+    /**
+     * Gets all the section keys.
+     */
+    public Set<String> getSectionKeys() {
+        Set<String> keys = new HashSet<>();
+        keys.add(section_label);
+
+        if (!child_sections.isEmpty()) {
+            for (WikiSectionSimple child_section : child_sections) {
+                keys.addAll(child_section.getSectionKeys());
+            }
+        }
+        return keys;
+    }
+
     public void setSectionCitations(Map<Integer, Map<String, String>> citations) {
+        if (section_text == null || section_text.isEmpty()) {
+            return;
+        }
         Pattern cite_number_pattern = Pattern.compile("\\{\\{[0-9]+\\}\\}");
         Matcher cite_matcher = cite_number_pattern.matcher(section_text);
         while (cite_matcher.find()) {
@@ -81,6 +96,30 @@ public class WikiSectionSimple implements Serializable {
                 sentence_bow[i].add(token.intern().hashCode());
             }
         }
+    }
+
+    /**
+     * Returns the parent section.
+     *
+     * @param label
+     * @param parent
+     * @return
+     */
+    public static WikiSectionSimple findSection(String label, WikiSectionSimple parent, int level) {
+        if (parent.section_level <= level - 1) {
+            if (parent.section_level <= level - 1 && parent.section_label.equals(label)) {
+                return parent;
+            } else if (!parent.child_sections.isEmpty()) {
+                for (WikiSectionSimple child_section : parent.child_sections) {
+                    WikiSectionSimple section = findSection(label, child_section, level);
+
+                    if (section != null) {
+                        return section;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
 }
