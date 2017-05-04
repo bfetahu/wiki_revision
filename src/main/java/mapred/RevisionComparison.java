@@ -138,7 +138,7 @@ public class RevisionComparison extends Configured implements Tool {
     public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, WikiEntity> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-            WikiEntity revision = RevisionUtils.parseEntity(value.toString(), nlp);
+            WikiEntity revision = RevisionUtils.parseEntity(value.toString());
             context.write(new Text(revision.title), revision);
         }
     }

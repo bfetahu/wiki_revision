@@ -28,7 +28,6 @@ public class WikiRevLineParser {
 
     public static void main(String[] args) throws Exception {
         WikiRevLineParser rev = new WikiRevLineParser();
-//        rev.test(FileUtils.getFileReader("/Users/besnik/Desktop/rev_1.txt"));
         rev.run(args);
     }
 
@@ -124,44 +123,6 @@ public class WikiRevLineParser {
         threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
     }
 
-    public void test(BufferedReader br) throws IOException {
-        String line;
-
-        StringBuffer revision_data = new StringBuffer();
-        StringBuffer entity_data = new StringBuffer();
-        StringBuffer out_sb = new StringBuffer();
-
-        boolean is_revision_data = false, is_entity = false;
-        int count = 0;
-        while ((line = br.readLine()) != null) {
-            line = line.trim();
-            if (line.isEmpty() || line.equals("</page>")) {
-                continue;
-            }
-            if (line.equals("<page>")) {
-                is_entity = true;
-                entity_data.delete(0, entity_data.length());
-                entity_data.append(line).append("\n");
-            } else if (line.equals("<revision>")) {
-                is_revision_data = true;
-            } else if (!is_revision_data && is_entity) {
-                entity_data.append(line).append("\n");
-            } else if (line.equals("</revision>")) {
-                revision_data.append(line).append("\n");
-                is_revision_data = false;
-
-                count = processRevisionData(entity_data, revision_data, out_sb, null, count, "");
-                continue;
-            }
-
-            if (is_revision_data) {
-                revision_data.append(line).append("\n");
-            }
-        }
-        //flush the remaining revision
-        processRevisionData(entity_data, revision_data, out_sb, null, count, "");
-    }
-
     /**
      * Get file reader.
      */
@@ -191,8 +152,9 @@ public class WikiRevLineParser {
      */
     public int processRevisionData(StringBuffer entity_data, StringBuffer revision_data, StringBuffer out_sb, BufferedWriter br_out, int count, String file_name) throws IOException {
         //process the revision
-        WikiEntity revision = RevisionUtils.parseEntity(entity_data.toString() + "\n" + revision_data.append("\n</page>"), nlp);
+        WikiEntity revision = RevisionUtils.parseEntity(entity_data.toString() + "\n" + revision_data.append("\n</page>"));
         if (revision == null) {
+            revision_data.delete(0, revision_data.length());
             return count;
         }
         String entity_text = printRevision(revision);

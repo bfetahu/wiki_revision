@@ -128,10 +128,9 @@ public class RevisionUtils {
      * Parse the revision string into an entity.
      *
      * @param value
-     * @param nlp
      * @return
      */
-    public static WikiEntity parseEntity(String value, NLPUtils nlp) {
+    public static WikiEntity parseEntity(String value) {
         try {
             JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
             JSONObject revision_json = entity_json.getJSONObject("revision");
