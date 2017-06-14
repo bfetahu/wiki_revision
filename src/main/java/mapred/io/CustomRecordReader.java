@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -73,7 +73,9 @@ public class CustomRecordReader extends RecordReader<LongWritable, TextList> {
 
     private int lines_per_read = 100;
 
-    public CustomRecordReader(int lines_per_read) { this.lines_per_read = lines_per_read; }
+    public CustomRecordReader(int lines_per_read) {
+        this.lines_per_read = lines_per_read;
+    }
 
     public void initialize(InputSplit genericSplit, TaskAttemptContext context) throws IOException {
         FileSplit split = (FileSplit) genericSplit;
@@ -88,11 +90,11 @@ public class CustomRecordReader extends RecordReader<LongWritable, TextList> {
         fileIn = fs.open(file);
 
         CompressionCodec codec = new CompressionCodecFactory(job).getCodec(file);
-        if (null!=codec) {
+        if (null != codec) {
             isCompressedInput = true;
             decompressor = CodecPool.getDecompressor(codec);
             if (codec instanceof SplittableCompressionCodec) {
-                final SplitCompressionInputStream cIn = ((SplittableCompressionCodec)codec).createInputStream(fileIn, decompressor, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK);
+                final SplitCompressionInputStream cIn = ((SplittableCompressionCodec) codec).createInputStream(fileIn, decompressor, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK);
                 in = new CompressedSplitLineReader(cIn, job, this.recordDelimiterBytes);
                 start = cIn.getAdjustedStart();
                 end = cIn.getAdjustedEnd();
@@ -146,7 +148,7 @@ public class CustomRecordReader extends RecordReader<LongWritable, TextList> {
         pos += newSize;
         int textLength = value.getLength();
         byte[] textBytes = value.getBytes();
-        if ((textLength >= 3) && (textBytes[0] == (byte)0xEF) && (textBytes[1] == (byte)0xBB) && (textBytes[2] == (byte)0xBF)) {
+        if ((textLength >= 3) && (textBytes[0] == (byte) 0xEF) && (textBytes[1] == (byte) 0xBB) && (textBytes[2] == (byte) 0xBF)) {
             // find UTF-8 BOM, strip it.
             LOG.info("Found UTF-8 BOM and skipped it");
             textLength -= 3;
@@ -169,26 +171,30 @@ public class CustomRecordReader extends RecordReader<LongWritable, TextList> {
         key.set(pos);
         if (values == null) {
             values = new TextList();
-        }else{
+        } else {
+            //in case we cannot load the entire split, we keep the last revision from the previous entry for comparison
+            String value = values.getItem(values.getSize() - 1);
             values.getValues().clear();
+            if (value != null)
+                values.add(value);
         }
         int newSize = 0;
         // We always read one extra line, which lies outside the upper
         // split limit i.e. (end - 1)
         int lines_read = 0;
-        while(pos <= end && lines_read < lines_per_read){
-            if(pos == 0){
+        while (pos <= end && lines_read < lines_per_read) {
+            if (pos == 0) {
                 newSize = skipUtfByteOrderMark();
-            } else{
+            } else {
                 Text value = new Text();
                 newSize = in.readLine(value, maxLineLength, maxBytesToConsume(pos));
                 values.add(value.toString());
             }
             pos += newSize;
-            lines_read ++;
+            lines_read++;
         }
 
-        if(newSize == 0){
+        if (newSize == 0) {
             key = null;
             values = null;
             return false;
@@ -213,7 +219,7 @@ public class CustomRecordReader extends RecordReader<LongWritable, TextList> {
         if (start == end) {
             return 0.0f;
         } else {
-            return Math.min(1.0f, (getFilePosition() - start) / (float)(end - start));
+            return Math.min(1.0f, (getFilePosition() - start) / (float) (end - start));
         }
     }
 

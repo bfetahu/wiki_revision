@@ -19,6 +19,17 @@ public class TextList implements Writable, Serializable {
         return values;
     }
 
+    public int getSize(){
+        return values.size();
+    }
+
+    public String getItem(int index){
+        if(index >= values.size()){
+            return null;
+        }
+        return values.get(index);
+    }
+
     public void add(String value){
         values.add(value);
     }
