@@ -10,25 +10,21 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.NLineInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.json.JSONObject;
-import revisions.RevContentComparison;
 import utils.WikiUtils;
 
 import java.io.IOException;
-import java.util.*;
-
 
 /**
- * Created by besnik on 3/15/17.
+ * Created by besnik on 14.06.17.
  */
-public class RevisionComparison extends Configured implements Tool {
+public class WikiArticleAnalyzer  extends Configured implements Tool {
     public static void main(String[] args) throws Exception {
-        ToolRunner.run(new RevisionComparison(), args);
+        ToolRunner.run(new WikiArticleAnalyzer(), args);
     }
 
     @Override
@@ -40,6 +36,7 @@ public class RevisionComparison extends Configured implements Tool {
         conf.setLong("mapreduce.task.timeout", milliSeconds);
         conf.set("mapreduce.output.compress", "true");
         conf.set("mapreduce.child.java.opts", "8192m");
+
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
             if (args[i].equals("-data_dir")) {
@@ -54,8 +51,8 @@ public class RevisionComparison extends Configured implements Tool {
 
         job.setNumReduceTasks(num_reducers);
 
-        job.setJarByClass(RevisionComparison.class);
-        job.setJobName(RevisionComparison.class.getName() + "-" + System.currentTimeMillis());
+        job.setJarByClass(WikiArticleAnalyzer.class);
+        job.setJobName(WikiArticleAnalyzer.class.getName() + "-" + System.currentTimeMillis());
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
@@ -63,8 +60,8 @@ public class RevisionComparison extends Configured implements Tool {
         job.setMapOutputKeyClass(Text.class);
         job.setMapOutputValueClass(Text.class);
 
-        job.setMapperClass(WikiRevisionFilterMapper.class);
-        job.setReducerClass(WikiRevisionFilterReducer.class);
+        job.setMapperClass(WikiAnalyzerMapper.class);
+        job.setReducerClass(WikiAnalyzerReducer.class);
         job.setInputFormatClass(TextInputFormat.class);
 
         FileInputFormat.setInputPaths(job, data_dir);
@@ -80,60 +77,50 @@ public class RevisionComparison extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiRevisionFilterReducer extends Reducer<Text, Text, Text, Text> {
+    public static class WikiAnalyzerReducer extends Reducer<Text, Text, Text, Text> {
         @Override
         protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            RevContentComparison rc = new RevContentComparison();
-            Map<Long, String> sorted_revisions = new TreeMap<>();
+            Text max_value = null;
+            long max_rev = 0l;
+            //keep only the latest revision from a specific month.
             for (Text value : values) {
-                String rev_text = value.toString();
-                long rev_id = Long.parseLong(rev_text.substring(0, rev_text.indexOf("-")));
-                sorted_revisions.put(rev_id, rev_text.substring(rev_text.indexOf("-") + 1));
-            }
-            WikiEntity prev = null;
-            StringBuffer sb = new StringBuffer();
-
-            for (long rev_id : sorted_revisions.keySet()) {
-                WikiEntity revision = WikiUtils.parseEntity(sorted_revisions.get(rev_id), true);
-                revision.setExtractStatements(false);
-                revision.setExtractReferences(true);
-                revision.setMainSectionsOnly(false);
-                revision.setSplitSections(true);
-
-                revision.parseContent(true);
-
-                //return the revision difference data ending with a "\n"
-                if (prev == null) {
-                    sb.append(rc.printInitialRevision(revision));
-                } else {
-                    rc.compareWithOldRevision(revision, prev).forEach(line -> sb.append(line));
+                long rev_id = new JSONObject(value.toString()).getLong("id");
+                if(max_rev < rev_id){
+                    max_value = value;
+                    max_rev = rev_id;
                 }
-                prev = revision;
             }
 
-            context.write(new Text(key.toString()), new Text(sb.toString()));
+            WikiEntity entity = WikiUtils.parseEntity(max_value.toString(), true);
+            entity.setExtractStatements(true);
+            entity.setExtractReferences(true);
+            entity.setMainSectionsOnly(false);
+            entity.setSplitSections(true);
+
+            entity.parseContent(false);
+
+            String entity_output = entity.printAll();
+            context.write(null, new Text(entity_output));
         }
     }
+
 
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class WikiRevisionFilterMapper extends Mapper<LongWritable, Text, Text, Text> {
+    public static class WikiAnalyzerMapper extends Mapper<LongWritable, Text, Text, Text> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-            String revision_text = value.toString();
-            revision_text = revision_text.substring(revision_text.indexOf("\t"));
-            try {
-                JSONObject entity_json = new JSONObject(revision_text);
-                String year = entity_json.getString("timestamp");
-                year = year.substring(0, year.indexOf("-"));
-                String title = entity_json.getString("title");
-                long rev_id = entity_json.getLong("id");
+            String rev_text = value.toString();
+            rev_text = rev_text.substring(rev_text.indexOf("\t"));
 
-                context.write(new Text(title + "-" + year), new Text(rev_id + "-" + revision_text));
-            } catch (Exception e) {
-                System.out.printf("Error processing %s with message %s.\n", value.toString(), e.getMessage());
-            }
+            JSONObject wiki_json = new JSONObject(rev_text);
+            String yearmonth = wiki_json.getString("timestamp");
+            yearmonth = yearmonth.substring(0, yearmonth.indexOf("-", yearmonth.indexOf("-")));
+            String title = wiki_json.getString("title");
+
+            Text key_out = new Text(title + "-"+ yearmonth);
+            context.write(key_out, value);
         }
     }
 }

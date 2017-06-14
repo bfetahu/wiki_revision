@@ -1,9 +1,12 @@
 package utils;
 
 import entities.WikiEntity;
-import entities.WikiSectionSimple;
+import entities.WikiSection;
+import entities.WikiStatement;
 import gnu.trove.set.hash.TIntHashSet;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
 import org.json.JSONObject;
 import org.json.XML;
 
@@ -14,98 +17,85 @@ import java.util.*;
  */
 public class RevisionUtils {
 
-    public static List<Map.Entry<String, String>> computeIntersection(Map<String, List<Map.Entry<String, String>>> diff_sections) {
-        List<Map.Entry<String, String>> diff_intersection = new ArrayList<>();
-        String first_section = diff_sections.keySet().iterator().next();
-        for (Map.Entry<String, String> difference : diff_sections.get(first_section)) { //pick one random section, check if all other sections contain the same difference
-            boolean difference_in_all_sections = true;
-            for (String involved_section : diff_sections.keySet()) {
-                for (Map.Entry<String, String> involved_sentence : diff_sections.get(involved_section)) {
-                    if (!involved_sentence.equals(difference.getKey())) {
-                        difference_in_all_sections = false;
-                        break;
-                    }
-                }
-            }
-            if (difference_in_all_sections) {
-                diff_intersection.add(difference);
-            }
-        }
-        return diff_intersection;
-    }
-
-    public static Set<String> computeIntersectionSet(Map<String, Set<String>> differences_similarSections) {
-        Set<String> differences_intersection = new HashSet<>();
-
-        String first_section = differences_similarSections.keySet().iterator().next();
-        for (String difference : differences_similarSections.get(first_section)) { //pick one random section, check if all other sections contain the same difference
-            boolean difference_in_all_sections = true;
-            for (String involved_section : differences_similarSections.keySet()) {
-                if (!differences_similarSections.get(involved_section).contains(difference)) {
-                    difference_in_all_sections = false;
-                    break;
-                }
-            }
-            if (difference_in_all_sections) {
-                differences_intersection.add(difference);
-            }
-        }
-        return differences_intersection;
-    }
-
-
     /**
      * Compute sentence similarity based on their BoW representation.
      *
      * @param sentence
-     * @param sentenceSet
+     * @param section
      * @return
      */
-    public static int findMaxSimSentence(TIntHashSet sentence, TIntHashSet[] sentenceSet, double threshold) {
+    public static Triple<Integer, Integer, Double> findMaxSimSentence(WikiStatement sentence, WikiSection section, double threshold) {
         double max_sim_sentence = 0.0;
         int index = -1;
-        for (int i = 0; i < sentenceSet.length; i++) {
-            double score = RevisionUtils.computeJaccardDistance(sentence, sentenceSet[i]);
+
+        Map<Integer, WikiStatement> section_statements = section.getSectionStatements();
+        for (int statement_id:section_statements.keySet()) {
+            WikiStatement statement = section_statements.get(statement_id);
+            double score = RevisionUtils.computeJaccardDistance(sentence.sentence_bow, statement.sentence_bow);
             if (score > threshold && score > max_sim_sentence) {
                 max_sim_sentence = score;
-                index = i;
+                index = statement.id;
             }
         }
-        return index;
+        return new ImmutableTriple<>(sentence.id, index, max_sim_sentence);
     }
 
     /**
      * Compute the similarity between sections of two entity revisions.
      *
-     * @param rev_a
-     * @param rev_b
-     * @param sectionMapping
+     * @param prev_revision
+     * @param current_revision
      * @param threshold
      */
-    public static void computeSectionMappings(WikiEntity rev_a, WikiEntity rev_b, Map<String, List<Map.Entry<String, Double>>> sectionMapping, double threshold) {
+    public static List<Triple<String, String, Double>> computeSectionMappingsMax(WikiEntity prev_revision, WikiEntity current_revision, double threshold) {
+        List<Triple<String, String, Double>> mapping = new ArrayList<>();
         //get sections for both revisions
-        Set<String> rev_a_sections = rev_a.sections.keySet();
-        Set<String> rev_b_sections = rev_b.sections.keySet();
+        Set<String> current_sections = current_revision.getSectionKeys();
+        Set<String> prev_sections = prev_revision.getSectionKeys();
 
         //check for differences between revisions
-        for (String section : rev_a_sections) {
-            sectionMapping.put(section, new ArrayList<>());
-            if (!rev_b_sections.contains(section)) {
-                //check if section name has changed
-                for (String compared_section : rev_b_sections) {
-                    //rename?
-                    if (rev_a_sections.contains(compared_section)) {
-                        continue;
+        for (String prev_section : prev_sections) {
+            if (current_sections.contains(prev_section)) {
+                mapping.add(new ImmutableTriple<>(prev_section, prev_section, 1.0));
+                continue;
+            }
+
+            //in case the previous section does not exist in the current revision, we find the closest matching one
+            double max_score = 0.0;
+            String max_current_section = "";
+            for (String current_section : current_sections) {
+                double score = computeJaccardDistance(prev_revision.getSection(prev_section).section_bow, current_revision.getSection(current_section).section_bow);
+                if (max_score < score && score >= threshold) {
+                    max_current_section = current_section;
+                    max_score = score;
+                }
+            }
+
+            //in case there is no matching section above some threshold, then we have an empty string here which indicates
+            //that the section has been deleted.
+            mapping.add(new ImmutableTriple<>(prev_section, max_current_section, max_score));
+        }
+
+        //check for sections that might have been added in this revision
+        for (String current_section : current_sections) {
+            if (!prev_sections.contains(current_section)) {
+                double max_score = 0.0;
+                String max_prev_section = "";
+                for (String prev_section : prev_sections) {
+                    double score = computeJaccardDistance(prev_revision.getSection(prev_section).section_bow, current_revision.getSection(current_section).section_bow);
+                    if (max_score < score && score >= threshold) {
+                        max_prev_section = current_section;
+                        max_score = score;
                     }
-                    //compute similarity between sections
-                    double score = computeJaccardDistance(rev_a.sections.get(section).section_bow, rev_b.sections.get(compared_section).section_bow);
-                    if (score < threshold) {
-                        continue;
-                    }
-                    sectionMapping.get(section).add(new AbstractMap.SimpleEntry<>(compared_section, score));
+                }
+
+                //the section has been added in this revision
+                if (max_prev_section.isEmpty()) {
+                    mapping.add(new ImmutableTriple<>(max_prev_section, current_section, max_score));
                 }
             }
         }
+        return mapping;
     }
 
     /**
@@ -124,80 +114,36 @@ public class RevisionUtils {
         return common.size() / (double) (values_a.size() + values_b.size() - common.size());
     }
 
+
     /**
-     * Parse the revision string into an entity.
+     * Convert the XML Wikipedia revision to JSON.
      *
      * @param value
      * @return
      */
-    public static WikiEntity parseEntity(String value) {
-        try {
-            JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
-            JSONObject revision_json = entity_json.getJSONObject("revision");
-            JSONObject contributor_json = revision_json.getJSONObject("contributor");
-            JSONObject text_json = revision_json.getJSONObject("text");
-            //get the child nodes
-            String title, user_id, text;
-            title = entity_json.has("title") ? entity_json.get("title").toString() : "";
+    public static String convertToJSON(String value) {
+        JSONObject entity_json = XML.toJSONObject(value.toString()).getJSONObject("page");
+        JSONObject revision_json = entity_json.getJSONObject("revision");
+        JSONObject contributor_json = revision_json.getJSONObject("contributor");
+        JSONObject text_json = revision_json.getJSONObject("text");
+        //get the child nodes
+        String title, user_id, text, comment;
+        title = entity_json.has("title") ? entity_json.get("title").toString() : "";
 
-            user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
-            user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
+        user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
+        user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
 
-            text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
+        text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
+        comment = revision_json != null && revision_json.has("comment") ? revision_json.get("comment").toString() : "";
 
-
-            WikiEntity entity = new WikiEntity();
-            entity.title = (title);
-            entity.revision_id = revision_json.getLong("id");
-            entity.timestamp = revision_json.get("timestamp").toString();
-            entity.title = title;
-            entity.user_id = user_id;
-            entity.setContent(text);
-
-            for (String section_key : entity.sections.keySet()) {
-                WikiSectionSimple section_simple = entity.sections.get(section_key);
-                section_simple.setSectionCitations(entity.entity_citations);
-            }
-
-            return entity;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+        StringBuffer sb = new StringBuffer();
+        sb.append("{").append("\"id\":").append(revision_json.getLong("id")).append(",").
+                append("\"timestamp\":\"").append(revision_json.get("timestamp").toString()).append("\",").
+                append("\"user\":\"").append(user_id).append("\",").
+                append("\"comment\":\"").append(StringEscapeUtils.escapeJson(comment)).append("\",").
+                append("\"title\":\"").append(StringEscapeUtils.escapeJson(title)).append("\",").
+                append("\"text\":\"").append(StringEscapeUtils.escapeJson(text)).append("\"}");
+        return sb.toString();
     }
 
-
-    /**
-     * Construct the sentence list for each entity sections.
-     *
-     * @param text
-     * @return
-     */
-    public static List<String> getSentences(String text, boolean running_text, NLPUtils nlp) {
-        List<String> sentences = new ArrayList<>();
-        text = StringEscapeUtils.escapeJson(text);
-
-        //cleaning
-        text = text.replace("...", ".");
-        text = text.replaceAll("\\{\\{[0-9]+\\}\\}", "");
-        text = text.replaceAll("\\[|\\]", "");
-
-        if (running_text) {
-            for (String sentence : nlp.getDocumentSentences(text)) {
-                sentence = sentence.replace("\\n", "");
-                if (sentence.length() > 3) {
-                    sentences.add(sentence);
-                }
-            }
-        } else {
-            text = StringEscapeUtils.unescapeJson(text);
-            String[] parts = text.split("\n");
-            for (String part : parts) {
-                if (part.length() > 3) {
-                    sentences.add(part);
-                }
-            }
-        }
-        return sentences;
-    }
 }
