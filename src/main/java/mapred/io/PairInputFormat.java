@@ -8,7 +8,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.*;
-import org.apache.hadoop.mapreduce.lib.input.*;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.util.LineReader;
 
 import java.io.IOException;
@@ -20,8 +21,7 @@ import java.util.List;
  */
 
 public class PairInputFormat extends FileInputFormat<LongWritable, TextList> {
-    public static final String LINES_PER_MAP =
-            "mapreduce.input.lineinputformat.linespermap";
+    public static final String LINES_PER_MAP = "mapreduce.input.lineinputformat.linespermap";
 
     public RecordReader<LongWritable, TextList> createRecordReader(InputSplit genericSplit, TaskAttemptContext context) throws IOException, InterruptedException {
         context.setStatus(genericSplit.toString());
@@ -68,13 +68,13 @@ public class PairInputFormat extends FileInputFormat<LongWritable, TextList> {
             }
 
             //in case the number of lines to read together is bigger than the actual number of lines in the file
-            if(num_lines >= line_offsets.size()){
-                splits.add(createFileSplit(fileName, begin, line_offsets.stream().mapToLong(x ->x).sum()));
-            } else{
+            if (num_lines >= line_offsets.size()) {
+                splits.add(createFileSplit(fileName, begin, line_offsets.stream().mapToLong(x -> x).sum()));
+            } else {
                 int line_counter = 1;
                 long length = 0;
-                for(int i = 0; i < line_offsets.size(); i ++, line_counter ++){
-                    if(line_counter == num_lines){
+                for (int i = 0; i < line_offsets.size(); i++, line_counter++) {
+                    if (line_counter == num_lines) {
                         long start = begin == 0 ? begin : begin - prev_line_length;
                         splits.add(createFileSplit(fileName, start, start + length));
 

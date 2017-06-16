@@ -11,35 +11,37 @@ import java.util.List;
  */
 public class TextList implements Writable, Serializable {
     private List<String> values;
-    public TextList(){
+
+    public TextList() {
         values = new ArrayList<>();
     }
 
-    public List<String> getValues(){
+    public List<String> getValues() {
         return values;
     }
 
-    public int getSize(){
+    public int getSize() {
         return values.size();
     }
 
-    public String getItem(int index){
-        if(index >= values.size()){
+    public String getItem(int index) {
+        if (index >= values.size()) {
             return null;
         }
         return values.get(index);
     }
 
-    public void add(String value){
+    public void add(String value) {
         values.add(value);
     }
+
     @Override
     public void write(DataOutput out) throws IOException {
         ByteArrayOutputStream b = new ByteArrayOutputStream();
         ObjectOutputStream o = new ObjectOutputStream(b);
         o.writeObject(values);
 
-        byte[] bytes= b.toByteArray();
+        byte[] bytes = b.toByteArray();
         out.writeInt(bytes.length);
         out.write(bytes);
     }
@@ -51,9 +53,9 @@ public class TextList implements Writable, Serializable {
         in.readFully(bytes);
 
         ObjectInputStream bi = new ObjectInputStream(new ByteArrayInputStream(bytes));
-        try{
-            values = (List)bi.readObject();
-        }catch (Exception e){
+        try {
+            values = (List) bi.readObject();
+        } catch (Exception e) {
             System.out.println("Error casting/reading object " + e.getMessage());
         }
 

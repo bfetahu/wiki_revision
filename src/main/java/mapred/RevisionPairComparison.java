@@ -101,15 +101,19 @@ public class RevisionPairComparison extends Configured implements Tool {
             StringBuffer sb = new StringBuffer();
 
             //is the initial revision
-            WikiEntity[] revisions = parseEntities(revision_lines);
-            for (int i = 0; i < revisions.length; i++) {
+            WikiEntity prev_revision = null;
+            for (int i = 0; i < revision_lines.size(); i++) {
+                String rev_line = revision_lines.get(i);
+                WikiEntity current_revision = parseEntities(rev_line);
                 if (i == 0) {
-                    sb.append(rc.printInitialRevision(revisions[0]));
-                } else if (!revisions[i - 1].title.equals(revisions[i].title)) {
-                    sb.append(rc.printInitialRevision(revisions[i]));
+                    sb.append(rc.printInitialRevision(current_revision));
+                } else if (!prev_revision.title.equals(current_revision.title)) {
+                    sb.append(rc.printInitialRevision(current_revision));
                 } else {
-                    rc.compareWithOldRevision(revisions[i], revisions[i - 1]).forEach(line -> sb.append(line));
+                    rc.compareWithOldRevision(current_revision, prev_revision).forEach(line -> sb.append(line));
                 }
+
+                prev_revision = current_revision;
             }
             context.write(null, new Text(sb.toString()));
         }
@@ -126,11 +130,8 @@ public class RevisionPairComparison extends Configured implements Tool {
         }
     }
 
-    public static WikiEntity[] parseEntities(List<String> lines) {
-        WikiEntity[] result = new WikiEntity[lines.size()];
-
-        for (int i = 0; i < lines.size(); i++) {
-            String rev_text = lines.get(i);
+    public static WikiEntity parseEntities(String rev_lines) {
+            String rev_text = rev_lines;
             rev_text = rev_text.substring(rev_text.indexOf("\t"));
 
             WikiEntity revision = WikiUtils.parseEntity(rev_text, true);
@@ -140,8 +141,6 @@ public class RevisionPairComparison extends Configured implements Tool {
             revision.setSplitSections(true);
 
             revision.parseContent(true);
-            result[i] = revision;
-        }
-        return result;
+        return revision;
     }
 }
