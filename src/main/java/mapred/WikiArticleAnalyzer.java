@@ -57,7 +57,7 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
-        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputKeyClass(LongWritable.class);
         job.setMapOutputValueClass(Text.class);
 
         job.setMapperClass(WikiAnalyzerMapper.class);
@@ -77,30 +77,23 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiAnalyzerReducer extends Reducer<Text, Text, Text, Text> {
+    public static class WikiAnalyzerReducer extends Reducer<LongWritable, Text, Text, Text> {
         @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            Text max_value = null;
-            long max_rev = 0l;
-            //keep only the latest revision from a specific month.
+        protected void reduce(LongWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             for (Text value : values) {
-                long rev_id = new JSONObject(value.toString()).getLong("id");
-                if(max_rev < rev_id){
-                    max_value = value;
-                    max_rev = rev_id;
-                }
+                String rev_text = value.toString();
+                rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
+                WikiEntity entity = WikiUtils.parseEntity(rev_text, true);
+                entity.setExtractStatements(true);
+                entity.setExtractReferences(true);
+                entity.setMainSectionsOnly(false);
+                entity.setSplitSections(true);
+
+                entity.parseContent(false);
+
+                String entity_output = entity.printAll();
+                context.write(null, new Text(entity_output));
             }
-
-            WikiEntity entity = WikiUtils.parseEntity(max_value.toString(), true);
-            entity.setExtractStatements(true);
-            entity.setExtractReferences(true);
-            entity.setMainSectionsOnly(false);
-            entity.setSplitSections(true);
-
-            entity.parseContent(false);
-
-            String entity_output = entity.printAll();
-            context.write(null, new Text(entity_output));
         }
     }
 
@@ -108,19 +101,10 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class WikiAnalyzerMapper extends Mapper<LongWritable, Text, Text, Text> {
+    public static class WikiAnalyzerMapper extends Mapper<LongWritable, Text, LongWritable, Text> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-            String rev_text = value.toString();
-            rev_text = rev_text.substring(rev_text.indexOf("\t"));
-
-            JSONObject wiki_json = new JSONObject(rev_text);
-            String yearmonth = wiki_json.getString("timestamp");
-            yearmonth = yearmonth.substring(0, yearmonth.indexOf("-", yearmonth.indexOf("-")));
-            String title = wiki_json.getString("title");
-
-            Text key_out = new Text(title + "-"+ yearmonth);
-            context.write(key_out, value);
+            context.write(key, value);
         }
     }
 }

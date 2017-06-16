@@ -59,7 +59,7 @@ public class PairInputFormat extends FileInputFormat<LongWritable, TextList> {
             int num = -1;
 
             //determine the split length in number of lines
-            int num_lines = conf.getInt(LINES_PER_MAP, 2);
+            int num_lines = conf.getInt(LINES_PER_MAP, 100);
 
             long prev_line_length = 0;
             List<Integer> line_offsets = new ArrayList<>();
@@ -110,21 +110,6 @@ public class PairInputFormat extends FileInputFormat<LongWritable, TextList> {
         return (begin == 0)
                 ? new FileSplit(fileName, begin, length - 1, new String[]{})
                 : new FileSplit(fileName, begin - 1, length, new String[]{});
-    }
-
-
-    /**
-     * Set the number of lines per split
-     *
-     * @param job      the job to modify
-     * @param numLines the number of lines per split
-     */
-    public static void setNumLinesPerSplit(Job job, int numLines) {
-        job.getConfiguration().setInt(LINES_PER_MAP, numLines);
-    }
-
-    public static int getNumLinesPerSplit(JobContext job) {
-        return job.getConfiguration().getInt(LINES_PER_MAP, 1);
     }
 
 }
