@@ -182,11 +182,11 @@ public class CustomRecordReader extends RecordReader<LongWritable, TextList> {
         // We always read one extra line, which lies outside the upper
         // split limit i.e. (end - 1)
         int lines_read = 0;
+        Text value = new Text();
         while (pos <= end && lines_read < lines_per_read) {
             if (pos == 0) {
                 newSize = skipUtfByteOrderMark();
             } else {
-                Text value = new Text();
                 newSize = in.readLine(value, maxLineLength, maxBytesToConsume(pos));
                 values.add(value.toString());
             }

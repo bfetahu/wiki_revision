@@ -54,7 +54,7 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
         job.setJarByClass(WikiArticleAnalyzer.class);
         job.setJobName(WikiArticleAnalyzer.class.getName() + "-" + System.currentTimeMillis());
 
-        job.setOutputKeyClass(Text.class);
+        job.setOutputKeyClass(LongWritable.class);
         job.setOutputValueClass(Text.class);
 
         job.setMapOutputKeyClass(LongWritable.class);
@@ -77,22 +77,22 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiAnalyzerReducer extends Reducer<LongWritable, Text, Text, Text> {
+    public static class WikiAnalyzerReducer extends Reducer<LongWritable, Text, LongWritable, Text> {
         @Override
         protected void reduce(LongWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             for (Text value : values) {
                 String rev_text = value.toString();
                 rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
                 WikiEntity entity = WikiUtils.parseEntity(rev_text, true);
-                entity.setExtractStatements(true);
+                entity.setExtractStatements(false);
                 entity.setExtractReferences(true);
                 entity.setMainSectionsOnly(false);
                 entity.setSplitSections(true);
 
                 entity.parseContent(false);
 
-                String entity_output = entity.printAll();
-                context.write(null, new Text(entity_output));
+                String entity_output = entity.printSectionCitations(true);
+                context.write(key, new Text(entity_output));
             }
         }
     }

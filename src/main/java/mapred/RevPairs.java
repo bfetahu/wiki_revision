@@ -1,8 +1,7 @@
 package mapred;
 
 import entities.WikiEntity;
-import mapred.io.PairInputFormat;
-import mapred.io.TextList;
+import mapred.io.WikiText;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -12,23 +11,22 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.json.JSONObject;
 import revisions.RevContentComparison;
-import utils.WikiUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 
 /**
  * Created by besnik on 3/15/17.
  */
-public class RevisionPairComparison extends Configured implements Tool {
+public class RevPairs extends Configured implements Tool {
     public static void main(String[] args) throws Exception {
-        ToolRunner.run(new RevisionPairComparison(), args);
+        ToolRunner.run(new RevPairs(), args);
     }
 
     @Override
@@ -40,7 +38,6 @@ public class RevisionPairComparison extends Configured implements Tool {
         conf.setLong("mapreduce.task.timeout", milliSeconds);
         conf.set("mapreduce.output.compress", "true");
         conf.set("mapreduce.child.java.opts", "8192m");
-        conf.setInt("mapreduce.input.linerecordreader.line.maxlength", Integer.MAX_VALUE);
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
@@ -50,26 +47,24 @@ public class RevisionPairComparison extends Configured implements Tool {
                 out_dir = args[++i];
             } else if (args[i].equals("-reducers")) {
                 num_reducers = Integer.valueOf(args[++i]);
-            } else if (args[i].equals("-num_lines")) {
-                conf.set("mapreduce.input.lineinputformat.linespermap", args[++i]);
             }
         }
         Job job = new Job(conf);
 
         job.setNumReduceTasks(num_reducers);
 
-        job.setJarByClass(RevisionPairComparison.class);
-        job.setJobName(RevisionPairComparison.class.getName() + "-" + System.currentTimeMillis());
+        job.setJarByClass(RevPairs.class);
+        job.setJobName(RevPairs.class.getName() + "-" + System.currentTimeMillis());
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
-        job.setMapOutputKeyClass(LongWritable.class);
-        job.setMapOutputValueClass(TextList.class);
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(WikiText.class);
 
         job.setMapperClass(PairMapper.class);
         job.setReducerClass(PairReducer.class);
-        job.setInputFormatClass(PairInputFormat.class);
+        job.setInputFormatClass(TextInputFormat.class);
 
         FileInputFormat.setInputPaths(job, data_dir);
 
@@ -84,38 +79,28 @@ public class RevisionPairComparison extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class PairReducer extends Reducer<LongWritable, TextList, Text, Text> {
+    public static class PairReducer extends Reducer<Text, WikiText, LongWritable, Text> {
         @Override
-        protected void reduce(LongWritable key, Iterable<TextList> values, Context context) throws IOException, InterruptedException {
+        protected void reduce(Text key, Iterable<WikiText> values, Context context) throws IOException, InterruptedException {
             RevContentComparison rc = new RevContentComparison();
-
-            List<String> revision_lines = new ArrayList<>();
-            for (TextList value : values) {
-                List<String> values_list = value.getValues();
-                for (int i = 0; i < values_list.size(); i++) {
-                    revision_lines.add(values_list.get(i));
-                }
-            }
-
-            System.out.println("There are " + revision_lines.size() + " lines for " + key);
             StringBuffer sb = new StringBuffer();
 
             //is the initial revision
             WikiEntity prev_revision = null;
-            for (int i = 0; i < revision_lines.size(); i++) {
-                String rev_line = revision_lines.get(i);
-                WikiEntity current_revision = parseEntities(rev_line, true);
-                if (i == 0) {
-                    sb.append(rc.printInitialRevision(current_revision));
-                } else if (!prev_revision.title.equals(current_revision.title)) {
+            long counter = key.hashCode();
+            for (WikiText value : values) {
+                sb.delete(0, sb.length());
+                WikiEntity current_revision = RevisionPairComparison.parseEntities(value.text, false);
+                if (prev_revision == null) {
                     sb.append(rc.printInitialRevision(current_revision));
                 } else {
                     rc.compareWithOldRevision(current_revision, prev_revision).forEach(line -> sb.append(line));
                 }
-
                 prev_revision = current_revision;
+
+                counter++;
+                context.write(new LongWritable(counter), new Text(sb.toString()));
             }
-            context.write(null, new Text(sb.toString()));
         }
     }
 
@@ -123,25 +108,21 @@ public class RevisionPairComparison extends Configured implements Tool {
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class PairMapper extends Mapper<LongWritable, TextList, LongWritable, TextList> {
+    public static class PairMapper extends Mapper<LongWritable, Text, Text, WikiText> {
         @Override
-        protected void map(LongWritable key, TextList value, Context context) throws IOException, InterruptedException {
-            context.write(key, value);
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String rev_text = value.toString();
+            rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
+
+            JSONObject rev_json = new JSONObject(rev_text);
+            String timestamp = rev_json.getString("timestamp");
+            int start = timestamp.indexOf("-");
+            String key_timestamp = rev_json.getString("title") + "-" + timestamp.substring(0, start);
+
+            WikiText wiki = new WikiText();
+            wiki.rev_id = rev_json.getLong("id");
+            wiki.text = rev_text;
+            context.write(new Text(key_timestamp), wiki);
         }
-    }
-
-    public static WikiEntity parseEntities(String rev_lines, boolean split) {
-        String rev_text = rev_lines;
-        if (split)
-            rev_text = rev_text.substring(rev_text.indexOf("\t"));
-
-        WikiEntity revision = WikiUtils.parseEntity(rev_text, true);
-        revision.setExtractStatements(false);
-        revision.setExtractReferences(true);
-        revision.setMainSectionsOnly(false);
-        revision.setSplitSections(true);
-
-        revision.parseContent(true);
-        return revision;
     }
 }
