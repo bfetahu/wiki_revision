@@ -54,7 +54,7 @@ public class WikiLine extends Configured implements Tool {
         job.setJarByClass(WikiLine.class);
         job.setJobName(WikiLine.class.getName() + "-" + System.currentTimeMillis());
 
-        job.setOutputKeyClass(Text.class);
+        job.setOutputKeyClass(LongWritable.class);
         job.setOutputValueClass(Text.class);
 
         job.setMapOutputKeyClass(LongWritable.class);
@@ -78,12 +78,14 @@ public class WikiLine extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class WikiLineReducer extends Reducer<LongWritable, Text, Text, Text> {
+    public static class WikiLineReducer extends Reducer<LongWritable, Text, LongWritable, Text> {
         @Override
         protected void reduce(LongWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             Iterator<Text> iter = values.iterator();
             while (iter.hasNext()) {
-                context.write(null, iter.next());
+                String json_rev = RevisionUtils.convertToJSON(iter.next().toString());
+
+                context.write(key, new Text(json_rev));
             }
         }
     }
@@ -94,8 +96,7 @@ public class WikiLine extends Configured implements Tool {
     public static class WikiLineMapper extends Mapper<LongWritable, Text, LongWritable, Text> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-            String json_rev = RevisionUtils.convertToJSON(value.toString());
-            context.write(key, new Text(json_rev));
+            context.write(key, value);
         }
     }
 }

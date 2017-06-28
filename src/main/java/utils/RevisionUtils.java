@@ -10,7 +10,10 @@ import org.apache.commons.lang3.tuple.Triple;
 import org.json.JSONObject;
 import org.json.XML;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by besnik on 1/18/17.
@@ -29,7 +32,7 @@ public class RevisionUtils {
         int index = -1;
 
         Map<Integer, WikiStatement> section_statements = section.getSectionStatements();
-        for (int statement_id:section_statements.keySet()) {
+        for (int statement_id : section_statements.keySet()) {
             WikiStatement statement = section_statements.get(statement_id);
             double score = RevisionUtils.computeJaccardDistance(sentence.sentence_bow, statement.sentence_bow);
             if (score > threshold && score > max_sim_sentence) {
@@ -127,20 +130,25 @@ public class RevisionUtils {
         JSONObject contributor_json = revision_json.getJSONObject("contributor");
         JSONObject text_json = revision_json.getJSONObject("text");
         //get the child nodes
-        String title, user_id, text, comment;
+        String title, user_id, username, userip, text, comment;
         title = entity_json.has("title") ? entity_json.get("title").toString() : "";
 
-        user_id = contributor_json != null && contributor_json.has("id") ? contributor_json.get("id").toString() : "";
-        user_id = user_id.isEmpty() && contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
+        user_id = contributor_json.has("id") ? contributor_json.get("id").toString() : "";
+        username = contributor_json.has("username") ? contributor_json.get("username").toString() : "";
+        userip = contributor_json.has("ip") ? contributor_json.get("ip").toString() : "";
 
         text = text_json != null && text_json.has("content") ? text_json.get("content").toString() : "";
         comment = revision_json != null && revision_json.has("comment") ? revision_json.get("comment").toString() : "";
 
+        boolean is_minor = value.contains("<minor");
         StringBuffer sb = new StringBuffer();
         sb.append("{").append("\"id\":").append(revision_json.getLong("id")).append(",").
                 append("\"timestamp\":\"").append(revision_json.get("timestamp").toString()).append("\",").
-                append("\"user\":\"").append(user_id).append("\",").
+                append("\"user_id\":\"").append(user_id).append("\",").
+                append("\"user_name\":\"").append(username).append("\",").
+                append("\"user_ip\":\"").append(userip).append("\",").
                 append("\"comment\":\"").append(StringEscapeUtils.escapeJson(comment)).append("\",").
+                append("\"minor\":\"").append(is_minor).append("\",").
                 append("\"title\":\"").append(StringEscapeUtils.escapeJson(title)).append("\",").
                 append("\"text\":\"").append(StringEscapeUtils.escapeJson(text)).append("\"}");
         return sb.toString();
