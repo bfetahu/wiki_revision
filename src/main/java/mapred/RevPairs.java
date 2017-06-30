@@ -7,6 +7,7 @@ import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.compress.BZip2Codec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -70,6 +71,7 @@ public class RevPairs extends Configured implements Tool {
 
         Path outPath = new Path(out_dir);
         FileOutputFormat.setOutputPath(job, outPath);
+        FileOutputFormat.setOutputCompressorClass(job, BZip2Codec.class);
         outPath.getFileSystem(conf).delete(outPath, true);
 
         job.waitForCompletion(true);

@@ -6,6 +6,7 @@ import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.compress.BZip2Codec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -14,7 +15,6 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import org.json.JSONObject;
 import utils.WikiUtils;
 
 import java.io.IOException;
@@ -22,7 +22,7 @@ import java.io.IOException;
 /**
  * Created by besnik on 14.06.17.
  */
-public class WikiArticleAnalyzer  extends Configured implements Tool {
+public class WikiArticleAnalyzer extends Configured implements Tool {
     public static void main(String[] args) throws Exception {
         ToolRunner.run(new WikiArticleAnalyzer(), args);
     }
@@ -34,8 +34,6 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
         long milliSeconds = 10000 * 60 * 60;// <default is 600000, likewise can give any value)
 
         conf.setLong("mapreduce.task.timeout", milliSeconds);
-        conf.set("mapreduce.output.compress", "true");
-        conf.set("mapreduce.child.java.opts", "8192m");
 
         String data_dir = "", out_dir = "";
         for (int i = 0; i < args.length; i++) {
@@ -68,6 +66,7 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
 
         Path outPath = new Path(out_dir);
         FileOutputFormat.setOutputPath(job, outPath);
+        FileOutputFormat.setOutputCompressorClass(job, BZip2Codec.class);
         outPath.getFileSystem(conf).delete(outPath, true);
 
         job.waitForCompletion(true);
@@ -84,6 +83,11 @@ public class WikiArticleAnalyzer  extends Configured implements Tool {
                 String rev_text = value.toString();
                 rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
                 WikiEntity entity = WikiUtils.parseEntity(rev_text, true);
+
+                if (entity == null) {
+                    continue;
+                }
+
                 entity.setExtractStatements(false);
                 entity.setExtractReferences(true);
                 entity.setMainSectionsOnly(false);

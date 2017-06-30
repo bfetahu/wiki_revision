@@ -129,7 +129,7 @@ public class RevContentComparison {
             //sentences
             WikiSection section = revision.getSection(section_key);
             sb.append("0<d>=</d>").append(revision.getRevisionID()).append("\t").append(revision.title).
-                    append("\t").append(revision.getUserID()).
+                    append("\t").append(revision.user_id).
                     append("\t").append(revision.getRevisionTimestamp()).
                     append("\t");
             printInitialSectionRevision(null, revision, section, sb, true);
@@ -148,7 +148,7 @@ public class RevContentComparison {
         String label = is_new ? "2" : "-1";
         sb.append(prev_revision != null ? prev_revision.getRevisionID() : 0).append("<d>=</d>").append(current_revision.getRevisionID()).
                 append("\t").append(current_revision.title).
-                append("\t").append(current_revision.getUserID()).
+                append("\t").append(current_revision.user_id).
                 append("\t").append(current_revision.getRevisionTimestamp()).
                 append("\t");
 
@@ -177,7 +177,7 @@ public class RevContentComparison {
                                         List<Triple<Integer, Integer, Double>> sentence_mappings, StringBuffer sb) {
         sb.append(prev_revision.getRevisionID()).append("<d>=</d>").append(current_revision.getRevisionID()).
                 append("\t").append(current_revision.title).
-                append("\t").append(current_revision.getUserID()).
+                append("\t").append(current_revision.user_id).
                 append("\t").append(current_revision.getRevisionTimestamp()).
                 append("\t");
         sb.append(section_mapping.getLeft()).append("<d>=</d>").

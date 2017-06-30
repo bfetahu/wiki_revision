@@ -49,6 +49,8 @@ public class WikiLine extends Configured implements Tool {
         Job job = new Job(conf);
         long milliSeconds = 10000 * 60 * 60;
         conf.setLong("mapred.task.timeout", milliSeconds);
+        conf.set("mapred.reduce.shuffle.input.buffer.percent", "0.6");
+
         job.setNumReduceTasks(num_reducers);
 
         job.setJarByClass(WikiLine.class);
