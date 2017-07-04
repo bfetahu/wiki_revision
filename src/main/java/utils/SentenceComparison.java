@@ -44,7 +44,7 @@ public class SentenceComparison {
      * @return
      */
     public static String[] createWordList(String sentence){
-        String[] words = sentence.toLowerCase().replaceAll("[^a-z ]", "").toLowerCase().split("\\s+");
+        String[] words = sentence.toLowerCase().replaceAll("[^a-z0-9 ]", "").split("\\s+");
         return words;
     }
 
