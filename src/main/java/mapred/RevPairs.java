@@ -93,10 +93,13 @@ public class RevPairs extends Configured implements Tool {
             for (WikiText value : values) {
                 sb.delete(0, sb.length());
                 WikiEntity current_revision = RevisionPairComparison.parseEntities(value.text, false);
+                if (current_revision == null) {
+                    continue;
+                }
                 if (prev_revision == null) {
                     sb.append(rc.printInitialRevision(current_revision));
                 } else {
-                    rc.compareWithOldRevision(current_revision, prev_revision).forEach(line -> sb.append(line));
+                    sb.append(rc.compareWithOldRevision(current_revision, prev_revision));
                 }
                 prev_revision = current_revision;
 
@@ -116,15 +119,20 @@ public class RevPairs extends Configured implements Tool {
             String rev_text = value.toString();
             rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
 
-            JSONObject rev_json = new JSONObject(rev_text);
-            String timestamp = rev_json.getString("timestamp");
-            int start = timestamp.indexOf("-");
-            String key_timestamp = rev_json.getString("title") + "-" + timestamp.substring(0, start);
+            try {
+                JSONObject rev_json = new JSONObject(rev_text);
+//            String timestamp = rev_json.getString("timestamp");
+//            int start = timestamp.indexOf("-");
+//            String key_timestamp = rev_json.getString("title") + "-" + timestamp.substring(0, start);
 
-            WikiText wiki = new WikiText();
-            wiki.rev_id = rev_json.getLong("id");
-            wiki.text = rev_text;
-            context.write(new Text(key_timestamp), wiki);
+                WikiText wiki = new WikiText();
+                wiki.rev_id = rev_json.getLong("id");
+                wiki.text = rev_text;
+                context.write(new Text(rev_json.getString("title")), wiki);
+            } catch (Exception e) {
+                //for the few revisions where the username breaks the json.
+                System.out.println(e.getMessage());
+            }
         }
     }
 }

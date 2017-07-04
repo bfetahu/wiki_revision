@@ -16,7 +16,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import revisions.RevContentComparison;
-import utils.WikiUtils;
+import wiki.utils.WikiUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -110,7 +110,7 @@ public class RevisionPairComparison extends Configured implements Tool {
                 } else if (!prev_revision.title.equals(current_revision.title)) {
                     sb.append(rc.printInitialRevision(current_revision));
                 } else {
-                    rc.compareWithOldRevision(current_revision, prev_revision).forEach(line -> sb.append(line));
+                    sb.append(rc.compareWithOldRevision(current_revision, prev_revision));
                 }
 
                 prev_revision = current_revision;
@@ -135,13 +135,17 @@ public class RevisionPairComparison extends Configured implements Tool {
         if (split)
             rev_text = rev_text.substring(rev_text.indexOf("\t"));
 
-        WikiEntity revision = WikiUtils.parseEntity(rev_text, true);
-        revision.setExtractStatements(false);
-        revision.setExtractReferences(true);
-        revision.setMainSectionsOnly(false);
-        revision.setSplitSections(true);
+        try {
+            WikiEntity revision = WikiUtils.parseEntity(rev_text, true);
+            revision.setExtractStatements(false);
+            revision.setExtractReferences(true);
+            revision.setMainSectionsOnly(false);
+            revision.setSplitSections(true);
 
-        revision.parseContent(true);
-        return revision;
+            revision.parseContent(true);
+            return revision;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

@@ -1,61 +1,45 @@
 
 
+import entities.WikiEntity;
+import revisions.RevContentComparison;
 import utils.FileUtils;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.util.*;
 
 /**
  * Created by besnik on 6/23/17.
  */
 public class Test {
     public static void main(String[] args) throws IOException {
-        BufferedReader reader = FileUtils.getFileReader("/Users/besnik/Desktop/revision_stats.csv.bz2");
+        String obama_1 = FileUtils.readText("/Users/besnik/Desktop/obama.xml");
+        String obama_2 = FileUtils.readText("/Users/besnik/Desktop/obama2.xml");
 
-        Map<Integer, List<Integer>> sections = new HashMap<>();
-        Map<Integer, List<Integer>> citations = new HashMap<>();
-
-
-        Map<Integer, Set<String>> entities = new HashMap<>();
-        String line = null;
-        while ((line = reader.readLine()) != null) {
-            String[] data = line.split("\t");
-
-            int year = Integer.valueOf(data[1]);
-            int num_sections = Integer.valueOf(data[2]);
-            int num_citations = Integer.valueOf(data[3]);
-
-            if (!sections.containsKey(year)) {
-                sections.put(year, new ArrayList<>());
-                citations.put(year, new ArrayList<>());
-                entities.put(year, new HashSet<>());
-            }
-
-            sections.get(year).add(num_sections);
-            citations.get(year).add(num_citations);
-            entities.get(year).add(data[0]);
-        }
+        WikiEntity e1 = new WikiEntity();
+        e1.title = "Barack Obama";
+        e1.setRevisionID(1l);
+        e1.content = obama_1;
+        e1.setExtractStatements(false);
+        e1.setExtractReferences(true);
+        e1.setMainSectionsOnly(false);
+        e1.setSplitSections(true);
+        e1.parseContent(true);
 
 
-        Integer[] years = new Integer[sections.size()];
-        sections.keySet().toArray(years);
-
-        for (int year : years) {
-            double max_sections = sections.get(year).stream().mapToDouble(x -> x).max().getAsDouble();
-            double min_sections = sections.get(year).stream().mapToDouble(x -> x).min().getAsDouble();
-            double avg_sections = sections.get(year).stream().mapToDouble(x -> x).average().getAsDouble();
-
-            double max_citations = sections.get(year).stream().mapToDouble(x -> x).max().getAsDouble();
-            double min_citations = sections.get(year).stream().mapToDouble(x -> x).min().getAsDouble();
-            double avg_citations = sections.get(year).stream().mapToDouble(x -> x).average().getAsDouble();
+        WikiEntity e2 = new WikiEntity();
+        e2.title = "Barack Obama";
+        e2.setRevisionID(2l);
+        e2.content = obama_2;
+        e2.setExtractStatements(false);
+        e2.setExtractReferences(true);
+        e2.setMainSectionsOnly(false);
+        e2.setSplitSections(true);
+        e2.parseContent(true);
 
 
-            int num_entities = entities.get(year).size();
-
-
-            System.out.printf("%d\t%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\n", year, num_entities, max_sections, min_sections, avg_sections, max_citations, min_citations, avg_citations);
-        }
-
+        RevContentComparison rc = new RevContentComparison();
+        StringBuffer sb = new StringBuffer();
+        sb.append(rc.compareWithOldRevision(e2, e1)).append("\n");
+        sb.append(rc.printInitialRevision(e1));
+        FileUtils.saveText(sb.toString(), "/Users/besnik/Desktop/obama_out.json");
     }
 }
