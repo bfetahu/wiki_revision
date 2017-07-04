@@ -108,7 +108,7 @@ public class RevContentComparison {
             //consider all those cases where the sentences cannot be explicitly linked
             if (!prev_statements.containsKey(current_sentence_id)) {
                 Triple<Integer, Integer, Double> mapping = RevisionUtils.findMaxSimSentence(current_sentence, prev_section, threshold);
-                if (mapping.getLeft() != -1) {
+                if (mapping.getMiddle() != -1) {
                     continue;
                 }
                 content_diff.add(mapping);

@@ -16,7 +16,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import revisions.RevContentComparison;
-import utils.WikiUtils;
+import wiki.utils.WikiUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

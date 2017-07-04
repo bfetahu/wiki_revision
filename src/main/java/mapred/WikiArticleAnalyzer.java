@@ -15,7 +15,7 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import utils.WikiUtils;
+import wiki.utils.WikiUtils;
 
 import java.io.IOException;
 
@@ -80,23 +80,29 @@ public class WikiArticleAnalyzer extends Configured implements Tool {
         @Override
         protected void reduce(LongWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             for (Text value : values) {
-                String rev_text = value.toString();
-                rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
-                WikiEntity entity = WikiUtils.parseEntity(rev_text, true);
+                try {
+                    String rev_text = value.toString();
+                    rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
+                    WikiEntity entity = WikiUtils.parseEntity(rev_text, true);
+                    WikiUtils.timeout = 30000;
 
-                if (entity == null) {
-                    continue;
+                    boolean has_invalid_structure = rev_text.contains("=======");
+                    String title = entity.title.toLowerCase();
+                    if (entity == null || title.startsWith("talk") || title.startsWith("category") || has_invalid_structure) {
+                        continue;
+                    }
+
+                    entity.setExtractStatements(false);
+                    entity.setExtractReferences(true);
+                    entity.setMainSectionsOnly(false);
+                    entity.setSplitSections(true);
+                    entity.parseContent(false);
+
+                    String entity_output = entity.printSectionCitations(true);
+                    context.write(key, new Text(entity_output));
+                } catch (Exception e) {
+                    System.out.println("Error processing line: " + value.toString() + " with message " + e.getMessage());
                 }
-
-                entity.setExtractStatements(false);
-                entity.setExtractReferences(true);
-                entity.setMainSectionsOnly(false);
-                entity.setSplitSections(true);
-
-                entity.parseContent(false);
-
-                String entity_output = entity.printSectionCitations(true);
-                context.write(key, new Text(entity_output));
             }
         }
     }
