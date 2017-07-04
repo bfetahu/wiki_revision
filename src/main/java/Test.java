@@ -38,7 +38,8 @@ public class Test {
 
         RevContentComparison rc = new RevContentComparison();
         StringBuffer sb = new StringBuffer();
-        sb.append(rc.compareWithOldRevision(e2, e1));
-        FileUtils.saveText(sb.toString(), "/Users/besnik/Desktop/obama_out.txt");
+        sb.append(rc.compareWithOldRevision(e2, e1)).append("\n");
+        sb.append(rc.printInitialRevision(e1));
+        FileUtils.saveText(sb.toString(), "/Users/besnik/Desktop/obama_out.json");
     }
 }
