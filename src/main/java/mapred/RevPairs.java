@@ -96,7 +96,7 @@ public class RevPairs extends Configured implements Tool {
                 if (prev_revision == null) {
                     sb.append(rc.printInitialRevision(current_revision));
                 } else {
-                    rc.compareWithOldRevision(current_revision, prev_revision).forEach(line -> sb.append(line));
+                    sb.append(rc.compareWithOldRevision(current_revision, prev_revision));
                 }
                 prev_revision = current_revision;
 

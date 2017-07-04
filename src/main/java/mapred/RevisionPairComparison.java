@@ -110,7 +110,7 @@ public class RevisionPairComparison extends Configured implements Tool {
                 } else if (!prev_revision.title.equals(current_revision.title)) {
                     sb.append(rc.printInitialRevision(current_revision));
                 } else {
-                    rc.compareWithOldRevision(current_revision, prev_revision).forEach(line -> sb.append(line));
+                    sb.append(rc.compareWithOldRevision(current_revision, prev_revision));
                 }
 
                 prev_revision = current_revision;

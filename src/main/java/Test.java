@@ -5,7 +5,6 @@ import revisions.RevContentComparison;
 import utils.FileUtils;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Created by besnik on 6/23/17.
@@ -38,10 +37,8 @@ public class Test {
 
 
         RevContentComparison rc = new RevContentComparison();
-        List<String> output = rc.compareWithOldRevision(e2, e1);
-
         StringBuffer sb = new StringBuffer();
-        output.forEach(line -> sb.append(line).append("\n"));
+        sb.append(rc.compareWithOldRevision(e2, e1));
         FileUtils.saveText(sb.toString(), "/Users/besnik/Desktop/obama_out.txt");
     }
 }

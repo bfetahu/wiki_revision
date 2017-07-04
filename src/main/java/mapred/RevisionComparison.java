@@ -19,7 +19,8 @@ import revisions.RevContentComparison;
 import wiki.utils.WikiUtils;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Map;
+import java.util.TreeMap;
 
 
 /**
@@ -105,7 +106,7 @@ public class RevisionComparison extends Configured implements Tool {
                 if (prev == null) {
                     sb.append(rc.printInitialRevision(revision));
                 } else {
-                    rc.compareWithOldRevision(revision, prev).forEach(line -> sb.append(line));
+                    sb.append(rc.compareWithOldRevision(revision, prev));
                 }
                 prev = revision;
             }
