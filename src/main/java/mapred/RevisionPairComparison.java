@@ -135,13 +135,17 @@ public class RevisionPairComparison extends Configured implements Tool {
         if (split)
             rev_text = rev_text.substring(rev_text.indexOf("\t"));
 
-        WikiEntity revision = WikiUtils.parseEntity(rev_text, true);
-        revision.setExtractStatements(false);
-        revision.setExtractReferences(true);
-        revision.setMainSectionsOnly(false);
-        revision.setSplitSections(true);
+        try {
+            WikiEntity revision = WikiUtils.parseEntity(rev_text, true);
+            revision.setExtractStatements(false);
+            revision.setExtractReferences(true);
+            revision.setMainSectionsOnly(false);
+            revision.setSplitSections(true);
 
-        revision.parseContent(true);
-        return revision;
+            revision.parseContent(true);
+            return revision;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

@@ -37,18 +37,14 @@ public class RevContentComparison {
                 append(", \"current_revision\":").append(current_revision.getRevisionID()).
                 append(", \"title\":\"").append(StringEscapeUtils.escapeJson(current_revision.title)).
                 append("\", \"timestamp\":\"").append(current_revision.getRevisionTimestamp()).
-                append("\", \"user_id\":").append(current_revision.user_id).
-                append(", \"user_name\":\"").append(StringEscapeUtils.escapeJson(current_revision.user_name)).
+                append("\", \"user_id\":\"").append(current_revision.user_id).
+                append("\", \"user_name\":\"").append(StringEscapeUtils.escapeJson(current_revision.user_name)).
                 append("\", \"user_ip\":\"").append(StringEscapeUtils.escapeJson(current_revision.user_ip)).
                 append("\", \"sections\":[");
 
         List<Triple<String, String, Double>> mappings = RevisionUtils.computeSectionMappingsMax(prev_revision, current_revision, section_sim_threshold);
         int section_counter = 0;
         for (Triple<String, String, Double> section_mapping : mappings) {
-            if (section_counter != 0) {
-                sb.append(",");
-            }
-            section_counter++;
             sentence_mappings.clear();
 
             String prev_section_label = section_mapping.getLeft();
@@ -64,10 +60,18 @@ public class RevContentComparison {
             if (prev_section_label.isEmpty() && current_section_label.isEmpty()) {
                 continue;
             } else if (prev_section_label.isEmpty()) {
+                if (section_counter != 0) {
+                    sb.append(",");
+                }
                 printInitialSectionRevision(prev_revision, current_revision, current_revision.getSection(current_section_label), sb, true);
+                section_counter++;
                 continue;
             } else if (current_section_label.isEmpty()) {
+                if (section_counter != 0) {
+                    sb.append(",");
+                }
                 printInitialSectionRevision(prev_revision, current_revision, prev_revision.getSection(prev_section_label), sb, false);
+                section_counter++;
                 continue;
             }
 
@@ -85,8 +89,12 @@ public class RevContentComparison {
                 continue;
             }
 
+            if (section_counter != 0) {
+                sb.append(",");
+            }
             //output the comparison between the two mapped sections.
             printRevisionComparison(current_revision, prev_revision, section_mapping, prev_section, current_section, sentence_mappings, sb);
+            section_counter++;
         }
 
         sb.append("]}");
@@ -228,17 +236,22 @@ public class RevContentComparison {
 
         int statement_counter = 0;
         for (Triple<Integer, Integer, Double> sentence_mapping : sentence_mappings) {
-            if (statement_counter != 0) {
-                sb.append(",");
-            }
             WikiStatement statement_0 = prev_statements.get(sentence_mapping.getLeft());
             WikiStatement statement_1 = current_statements.get(sentence_mapping.getMiddle());
+            if (statement_0.toString().isEmpty() && statement_1.toString().isEmpty()) {
+                continue;
+            }
+
             double score = sentence_mapping.getRight();
             int label = 1;
             if (sentence_mapping.getLeft() == -1) {
                 label = 2;
             } else if (sentence_mapping.getMiddle() == -1) {
                 label = -1;
+            }
+
+            if (statement_counter != 0) {
+                sb.append(",");
             }
             sb.append("{\"prev_statement\":\"").append(StringEscapeUtils.escapeJson(statement_0 != null ? statement_0.toString() : "")).
                     append("\", \"current_statement\":\"").append(StringEscapeUtils.escapeJson(statement_1 != null ? statement_1.toString() : "")).
