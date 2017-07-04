@@ -27,7 +27,7 @@ public class RevisionUtils {
      * @param section
      * @return
      */
-    public static Triple<Integer, Integer, Double> findMaxSimSentence(WikiStatement sentence, WikiSection section, double threshold) {
+    public static Triple<Integer, Integer, Double> findMaxSimSentence(WikiStatement sentence, WikiSection section, double threshold, boolean isCurrentRevision) {
         double max_sim_sentence = 0.0;
         int index = -1;
 
@@ -40,7 +40,10 @@ public class RevisionUtils {
                 index = statement.id;
             }
         }
-        return new ImmutableTriple<>(sentence.id, index, max_sim_sentence);
+        if (!isCurrentRevision) {
+            return new ImmutableTriple<>(sentence.id, index, max_sim_sentence);
+        }
+        return new ImmutableTriple<>(index, sentence.id, max_sim_sentence);
     }
 
     /**

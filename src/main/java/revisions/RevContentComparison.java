@@ -120,7 +120,7 @@ public class RevContentComparison {
             WikiStatement prev_sentence = prev_statements.get(sentence_id);
             if (!current_statements.containsKey(sentence_id)) {
                 //check if there is a similar sentence
-                Triple<Integer, Integer, Double> mapping = RevisionUtils.findMaxSimSentence(prev_sentence, current_section, threshold);
+                Triple<Integer, Integer, Double> mapping = RevisionUtils.findMaxSimSentence(prev_sentence, current_section, threshold, false);
                 content_diff.add(mapping);
             }
         }
@@ -130,8 +130,8 @@ public class RevContentComparison {
             WikiStatement current_sentence = current_statements.get(current_sentence_id);
             //consider all those cases where the sentences cannot be explicitly linked
             if (!prev_statements.containsKey(current_sentence_id)) {
-                Triple<Integer, Integer, Double> mapping = RevisionUtils.findMaxSimSentence(current_sentence, prev_section, threshold);
-                if (mapping.getMiddle() != -1) {
+                Triple<Integer, Integer, Double> mapping = RevisionUtils.findMaxSimSentence(current_sentence, prev_section, threshold, true);
+                if (mapping.getLeft() != -1) {
                     continue;
                 }
                 content_diff.add(mapping);
@@ -200,12 +200,13 @@ public class RevContentComparison {
         TIntHashSet section_citations = section.getSectionCitations();
         int citation_counter = 0;
         for (int cite_id : entity_citations.keySet()) {
-            if (citation_counter != 0) {
-                sb.append(",");
-            }
             if (!section_citations.contains(cite_id)) {
                 continue;
             }
+            if (citation_counter != 0) {
+                sb.append(",");
+            }
+
             String[] citation = entity_citations.get(cite_id);
             sb.append("{\"url\":\"").append(StringEscapeUtils.escapeJson(citation[1])).append("\",\"label\":").append(label).append("}");
             citation_counter++;
@@ -238,7 +239,8 @@ public class RevContentComparison {
         for (Triple<Integer, Integer, Double> sentence_mapping : sentence_mappings) {
             WikiStatement statement_0 = prev_statements.get(sentence_mapping.getLeft());
             WikiStatement statement_1 = current_statements.get(sentence_mapping.getMiddle());
-            if (statement_0.toString().isEmpty() && statement_1.toString().isEmpty()) {
+
+            if ((statement_0 == null || statement_0.toString().isEmpty()) && (statement_1 == null || statement_1.toString().isEmpty())) {
                 continue;
             }
 
@@ -282,13 +284,14 @@ public class RevContentComparison {
 
         citation_counter = 0;
         for (int cite_id : current_section_citations.toArray()) {
-            if (statement_counter != 0) {
-                sb.append(",");
-            }
             if (!prev_section_citations.contains(cite_id)) {
                 String[] citation = current_revision.getCitation(cite_id);
                 if (citation == null) {
                     continue;
+                }
+
+                if (statement_counter != 0) {
+                    sb.append(",");
                 }
                 sb.append("{\"url\":\"").append(StringEscapeUtils.escapeJson(citation[1])).append("\",\"label\":2}");
                 citation_counter++;
