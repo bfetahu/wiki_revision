@@ -18,6 +18,7 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.json.JSONObject;
 import revisions.RevContentComparison;
+import utils.WikiUtils;
 
 import java.io.IOException;
 
@@ -86,6 +87,7 @@ public class RevPairs extends Configured implements Tool {
         protected void reduce(Text key, Iterable<WikiText> values, Context context) throws IOException, InterruptedException {
             RevContentComparison rc = new RevContentComparison();
             StringBuffer sb = new StringBuffer();
+            wiki.utils.WikiUtils.timeout = 30000;
 
             //is the initial revision
             WikiEntity prev_revision = null;
@@ -121,14 +123,14 @@ public class RevPairs extends Configured implements Tool {
 
             try {
                 JSONObject rev_json = new JSONObject(rev_text);
-//            String timestamp = rev_json.getString("timestamp");
-//            int start = timestamp.indexOf("-");
-//            String key_timestamp = rev_json.getString("title") + "-" + timestamp.substring(0, start);
+                String timestamp = rev_json.getString("timestamp");
+                int start = timestamp.indexOf("-");
+                String key_timestamp = rev_json.getString("title") + "-" + timestamp.substring(0, start);
 
                 WikiText wiki = new WikiText();
                 wiki.rev_id = rev_json.getLong("id");
                 wiki.text = rev_text;
-                context.write(new Text(rev_json.getString("title")), wiki);
+                context.write(new Text(key_timestamp), wiki);
             } catch (Exception e) {
                 //for the few revisions where the username breaks the json.
                 System.out.println(e.getMessage());
