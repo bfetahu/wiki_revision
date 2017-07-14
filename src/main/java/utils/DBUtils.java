@@ -1,98 +1,106 @@
 package utils;
 
-import gnu.trove.map.hash.TIntIntHashMap;
-
-import java.sql.*;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Created by besnik on 7/14/17.
  */
 public class DBUtils {
-    public static String mysql_user = "";
-    public static String mysql_pwd = "";
+    public static Map<Map.Entry<String, Integer>, Set<String>> getYagoParentChildTypes(String yago_types_file) throws IOException {
+        Map<Map.Entry<String, Integer>, Set<String>> data = new HashMap<>();
+        BufferedReader reader = FileUtils.getFileReader(yago_types_file);
+        String line;
 
-    /**
-     * Load the frequencies of YAGO types.
-     *
-     * @return
-     * @throws SQLException
-     */
-    public static TIntIntHashMap getYagoTypeFrequenciesT2(int threshold) throws SQLException {
-        Connection conn = getMySQLConnection();
-        PreparedStatement prep = conn.prepareStatement("SELECT type_id, entity_count FROM  type_entity_count WHERE entity_count > " + threshold);
-        TIntIntHashMap data = new TIntIntHashMap();
-        ResultSet rst = prep.executeQuery();
-        while (rst.next()) {
-            int entity_instances = rst.getInt("entity_count");
-            int type_id = rst.getInt("type_id");
-            data.put(type_id, entity_instances);
+        //skip the first line
+        reader.readLine();
+
+        while ((line = reader.readLine()) != null) {
+            String[] tmp = line.split("\t");
+            if (tmp.length != 6) {
+                continue;
+            }
+
+            String parent_type_label = tmp[4];
+            String type_label = tmp[2];
+            int level = Integer.valueOf(tmp[tmp.length - 1]);
+
+            Map.Entry<String, Integer> parent_entry = new AbstractMap.SimpleEntry<>(parent_type_label, level - 1);
+            if (!data.containsKey(parent_entry)) {
+                data.put(parent_entry, new HashSet<>());
+            }
+
+            data.get(parent_entry).add(type_label);
         }
         return data;
     }
 
     /**
-     * Loads the types.
+     * Load all the entity type ids.
      *
+     * @param yago_type_file
      * @return
-     * @throws SQLException
+     * @throws IOException
      */
-    public static Map<String, Integer> loadYagoTypesInverted() throws SQLException {
+    public static Map<String, Integer> getEntityTypeIDs(String yago_type_file) throws IOException {
         Map<String, Integer> data = new HashMap<>();
-        Connection conn = getMySQLConnection();
-        PreparedStatement prep = conn.prepareStatement("SELECT DISTINCT type_id, type_name FROM yago_types");
-        ResultSet rst = prep.executeQuery();
-        while (rst.next()) {
-            data.put(rst.getString("type_name"), rst.getInt("type_id"));
-        }
-        return data;
-    }
+        BufferedReader reader = FileUtils.getFileReader(yago_type_file);
+        String line;
 
-    public static Map<String, Set<String>> getYagoParentChildTypes() throws SQLException {
-        Map<String, Set<String>> data = new HashMap<>();
-        Connection conn = getMySQLConnection();
-        String sql = "SELECT parent_type_label, type_label FROM yago_type_taxonomy_tree";
-        PreparedStatement prep = conn.prepareStatement(sql);
+        //skip the first line
+        reader.readLine();
 
-        ResultSet rst = prep.executeQuery();
-        while (rst.next()) {
-            String parent_type_label = rst.getString("parent_type_label");
-            String type_label = rst.getString("type_label");
+        while ((line = reader.readLine()) != null) {
+            String[] tmp = line.split("\t");
+            if (tmp.length != 6) {
+                continue;
+            }
+
+            String parent_type_label = tmp[4];
+            int parent_type_id = Integer.valueOf(tmp[3]);
+            String type_label = tmp[2];
+            int child_type_id = Integer.valueOf(tmp[1]);
 
             if (!data.containsKey(parent_type_label)) {
-                data.put(parent_type_label, new HashSet<>());
+                data.put(parent_type_label, parent_type_id);
             }
-
-            data.get(parent_type_label).add(type_label);
+            if (!data.containsKey(type_label)) {
+                data.put(type_label, child_type_id);
+            }
         }
         return data;
     }
 
-    private static Connection conn;
+    /**
+     * Load the set of entities and the corresponding type associations.
+     *
+     * @return
+     * @throws IOException
+     */
+    public static Map<String, Set<Integer>> getEntities(String entity_type_file) throws IOException {
+        Map<String, Set<Integer>> entities = new HashMap<>();
 
-    @Override
-    public void finalize() throws SQLException {
-        if (conn != null) {
-            conn.close();
-        }
-    }
+        BufferedReader reader = FileUtils.getFileReader(entity_type_file);
+        String line;
 
-    public static Connection getMySQLConnection() {
-
-        if (conn == null) {
-            String dbURL = "jdbc:mysql://db.l3s.uni-hannover.de:3306/wikipedia_population?useUnicode=true&characterEncoding=utf-8";
-            try {
-                Class.forName("com.mysql.jdbc.Driver");
-                conn = DriverManager.getConnection(dbURL, mysql_user, mysql_pwd);
-            } catch (Exception e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+        //skip the first line
+        reader.readLine();
+        while ((line = reader.readLine()) != null) {
+            String[] tmp = line.split("\t");
+            if (tmp.length != 4) {
+                continue;
             }
-            return conn;
+
+            String entity = tmp[1].intern();
+            int type_id = Integer.valueOf(tmp[2]);
+
+            if (!entities.containsKey(entity)) {
+                entities.put(entity, new HashSet<>());
+            }
+            entities.get(entity).add(type_id);
         }
-        return conn;
+
+        return entities;
     }
 }

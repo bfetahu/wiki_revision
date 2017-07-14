@@ -1,14 +1,14 @@
 package revisions;
 
 
-import gnu.trove.map.hash.TIntIntHashMap;
 import utils.DBUtils;
 
-import java.sql.*;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Created by besnik on 9/10/15.
@@ -21,51 +21,75 @@ public class YagoTypeTaxonomy {
     public int num_instances;
     public Set<YagoTypeTaxonomy> children;
 
-    public YagoTypeTaxonomy(String type_label) {
+    public Set<String> entities;
+    public int level;
+
+    public YagoTypeTaxonomy(String type_label, int level) {
         this.type_label = type_label;
         children = new HashSet<>();
+        entities = new HashSet<>();
+
+        this.level = level;
+    }
+
+    /**
+     * Return the set of types that belong to a certain level in the YAGO type taxonomy.
+     *
+     * @param type
+     * @param level
+     * @param filtered_types
+     */
+    public static void getChildren(YagoTypeTaxonomy type, int level, Set<YagoTypeTaxonomy> filtered_types) {
+        if (type.level == level) {
+            filtered_types.addAll(type.children);
+            return;
+        }
+
+        if (type.children != null && !type.children.isEmpty()) {
+            for (YagoTypeTaxonomy child_type : type.children) {
+                getChildren(child_type, level, filtered_types);
+            }
+        }
     }
 
     /**
      * Parse the YAGO taxonomy from the DB and add them into the type tree.
      */
-    public static YagoTypeTaxonomy loadYagoTaxonomyDB(int threshold) throws SQLException {
-        TIntIntHashMap type_freqs = DBUtils.getYagoTypeFrequenciesT2(threshold);
+    public static YagoTypeTaxonomy loadYagoTaxonomyDB(String entity_type_file, String type_taxonomy_file) throws IOException {
         Map<String, YagoTypeTaxonomy> types = new HashMap<>();
-        Map<String, Integer> yago_types = DBUtils.loadYagoTypesInverted();
+        Map<String, Integer> yago_types = DBUtils.getEntityTypeIDs(type_taxonomy_file);
 
-        Map<String, Set<String>> parent_child_types = DBUtils.getYagoParentChildTypes();
-        for (String parent_label : parent_child_types.keySet()) {
-            if (!yago_types.containsKey(parent_label)) {
+        Map<String, Set<Integer>> entity_types = DBUtils.getEntities(entity_type_file);
+
+        Map<Map.Entry<String, Integer>, Set<String>> parent_child_types = DBUtils.getYagoParentChildTypes(type_taxonomy_file);
+        for (Map.Entry<String, Integer> parent_type_entry : parent_child_types.keySet()) {
+            if (!yago_types.containsKey(parent_type_entry.getKey())) {
                 continue;
             }
-            int parent_id = yago_types.get(parent_label);
-            for (String child_label : parent_child_types.get(parent_label)) {
-                if (!yago_types.containsKey(child_label)) {
+            int parent_id = yago_types.get(parent_type_entry.getKey());
+            for (String child_type_entry : parent_child_types.get(parent_type_entry)) {
+                if (!yago_types.containsKey(child_type_entry)) {
                     continue;
                 }
-                int child_id = yago_types.get(child_label);
+                int child_id = yago_types.get(child_type_entry);
 
-                if (!type_freqs.containsKey(parent_id) || !type_freqs.containsKey(child_id)) {
-                    continue;
+                if (!types.containsKey(parent_type_entry.getKey())) {
+                    types.put(parent_type_entry.getKey(), new YagoTypeTaxonomy(parent_type_entry.getKey(), parent_type_entry.getValue()));
                 }
 
-                if (!types.containsKey(parent_label)) {
-                    types.put(parent_label, new YagoTypeTaxonomy(parent_label));
+                if (!types.containsKey(child_type_entry)) {
+                    types.put(child_type_entry, new YagoTypeTaxonomy(child_type_entry, parent_type_entry.getValue() + 1));
                 }
 
-                if (!types.containsKey(child_label)) {
-                    types.put(child_label, new YagoTypeTaxonomy(child_label));
-                }
-
-                YagoTypeTaxonomy parent = types.get(parent_label);
+                YagoTypeTaxonomy parent = types.get(parent_type_entry.getKey());
                 parent.type_id = parent_id;
-                parent.num_instances = type_freqs.containsKey(parent.type_id) ? type_freqs.get(parent.type_id) : 0;
 
-                YagoTypeTaxonomy child = types.get(child_label);
+                YagoTypeTaxonomy child = types.get(child_type_entry);
                 child.is_root = false;
                 child.type_id = child_id;
-                child.num_instances = type_freqs.containsKey(child.type_id) ? type_freqs.get(child.type_id) : 0;
+                Set<String> sub_entities = entity_types.keySet().stream().filter(e -> entity_types.get(e).contains(child.type_id)).collect(Collectors.toSet());
+                child.num_instances = sub_entities.size();
+                child.entities = sub_entities;
 
                 parent.children.add(child);
             }
