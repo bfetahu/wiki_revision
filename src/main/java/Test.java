@@ -1,51 +1,17 @@
 
 
-import utils.FileUtils;
+import revisions.YagoTypeTaxonomy;
 
 import java.io.IOException;
+import java.sql.SQLException;
 
 /**
  * Created by besnik on 6/23/17.
  */
 public class Test {
-    public static void main(String[] args) throws IOException {
-//        String obama_1 = FileUtils.readText("/Users/besnik/Desktop/obama.xml");
-//        String obama_2 = FileUtils.readText("/Users/besnik/Desktop/obama2.xml");
-//
-//        WikiEntity e1 = new WikiEntity();
-//        e1.title = "Barack Obama";
-//        e1.setRevisionID(1l);
-//        e1.content = obama_1;
-//        e1.setExtractStatements(false);
-//        e1.setExtractReferences(true);
-//        e1.setMainSectionsOnly(false);
-//        e1.setSplitSections(true);
-//        e1.parseContent(true);
-//
-//
-//        WikiEntity e2 = new WikiEntity();
-//        e2.title = "Barack Obama";
-//        e2.setRevisionID(2l);
-//        e2.content = obama_2;
-//        e2.setExtractStatements(false);
-//        e2.setExtractReferences(true);
-//        e2.setMainSectionsOnly(false);
-//        e2.setSplitSections(true);
-//        e2.parseContent(true);
-//
-//
-//        RevContentComparison rc = new RevContentComparison();
-//        StringBuffer sb = new StringBuffer();
-//        sb.append(rc.compareWithOldRevision(e2, e1)).append("\n");
-//        sb.append(rc.printInitialRevision(e1));
-//        FileUtils.saveText(sb.toString(), "/Users/besnik/Desktop/obama_out.json");
+    public static void main(String[] args) throws IOException, SQLException {
+        YagoTypeTaxonomy tax = YagoTypeTaxonomy.loadYagoTaxonomyDB(1000);
 
-        String users =  FileUtils.readText("/Users/besnik/Desktop/user_list_userboxes_and_categories_sorted");
-        users = "\t" + users.replaceAll("\n", "\t") + "\t";
-        String user = "00Penguin00";
-
-        if (users.contains("\t" + user + "\t")) {
-            System.out.println(user);
-        }
+        System.out.println(tax.type_label + "\t" + tax.num_instances);
     }
 }
