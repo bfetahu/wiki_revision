@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Created by besnik on 9/10/15.
@@ -59,7 +58,7 @@ public class YagoTypeTaxonomy {
         Map<String, YagoTypeTaxonomy> types = new HashMap<>();
         Map<String, Integer> yago_types = DBUtils.getEntityTypeIDs(type_taxonomy_file);
 
-        Map<String, Set<Integer>> entity_types = DBUtils.getEntities(entity_type_file);
+        Map<Integer, Set<String>> entity_types = DBUtils.getEntities(entity_type_file);
 
         Map<Map.Entry<String, Integer>, Set<String>> parent_child_types = DBUtils.getYagoParentChildTypes(type_taxonomy_file);
         for (Map.Entry<String, Integer> parent_type_entry : parent_child_types.keySet()) {
@@ -87,7 +86,7 @@ public class YagoTypeTaxonomy {
                 YagoTypeTaxonomy child = types.get(child_type_entry);
                 child.is_root = false;
                 child.type_id = child_id;
-                Set<String> sub_entities = entity_types.keySet().stream().filter(e -> entity_types.get(e).contains(child.type_id)).collect(Collectors.toSet());
+                Set<String> sub_entities = entity_types.get(child_id);
                 child.num_instances = sub_entities.size();
                 child.entities = sub_entities;
 

@@ -17,6 +17,7 @@ public class Test {
 
         String entity_types = "/Users/besnik/Desktop/wikipedia_entity_types.csv.gz";
         String yago_types = "/Users/besnik/Desktop/yago_type_tree_taxonomy.csv.gz";
+
         YagoTypeTaxonomy tax = YagoTypeTaxonomy.loadYagoTaxonomyDB(entity_types, yago_types);
 
         //the level of aggregation we are interested at.

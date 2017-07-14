@@ -78,8 +78,8 @@ public class DBUtils {
      * @return
      * @throws IOException
      */
-    public static Map<String, Set<Integer>> getEntities(String entity_type_file) throws IOException {
-        Map<String, Set<Integer>> entities = new HashMap<>();
+    public static Map<Integer, Set<String>> getEntities(String entity_type_file) throws IOException {
+        Map<Integer, Set<String>> entities = new HashMap<>();
 
         BufferedReader reader = FileUtils.getFileReader(entity_type_file);
         String line;
@@ -95,10 +95,10 @@ public class DBUtils {
             String entity = tmp[1].intern();
             int type_id = Integer.valueOf(tmp[2]);
 
-            if (!entities.containsKey(entity)) {
-                entities.put(entity, new HashSet<>());
+            if (!entities.containsKey(type_id)) {
+                entities.put(type_id, new HashSet<>());
             }
-            entities.get(entity).add(type_id);
+            entities.get(type_id).add(entity);
         }
 
         return entities;
