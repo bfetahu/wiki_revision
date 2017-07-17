@@ -2,9 +2,7 @@ package utils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +50,26 @@ public class CategoryHierarchy {
     }
 
     /**
+     * Return the set of categories that belong to a certain level in the Wikipedia category taxonomy.
+     *
+     * @param category
+     * @param level
+     * @param categories
+     */
+    public static void getChildren(CategoryHierarchy category, int level, Set<CategoryHierarchy> categories) {
+        if (category.level == level) {
+            categories.add(category);
+            return;
+        }
+
+        if (category.children != null && !category.children.isEmpty()) {
+            for (String child_category : category.children.keySet()) {
+                getChildren(category.children.get(child_category), level, categories);
+            }
+        }
+    }
+
+    /**
      * Construct the category graph.
      *
      * @param category_file
@@ -73,8 +91,8 @@ public class CategoryHierarchy {
                 continue;
             }
 
-            String parent_label = data[0].replace("<http://dbpedia.org/resource/", "").replace(">", "");
-            String child_label = data[2].replace("<http://dbpedia.org/resource/", "").replace(">", "");
+            String parent_label = data[2].replace("<http://dbpedia.org/resource/", "").replace(">", "");
+            String child_label = data[0].replace("<http://dbpedia.org/resource/", "").replace(">", "");
 
             CategoryHierarchy parent = all_cats.get(parent_label);
             if (parent == null) {
@@ -145,7 +163,7 @@ public class CategoryHierarchy {
 
             Map<String, CategoryHierarchy> parents = category.parents;
             int max_level = parents.values().stream().map(x -> x.level).max((x, y) -> x.compareTo(y)).get();
-            List<Map.Entry<String, CategoryHierarchy>> filtered_parents = parents.entrySet().stream().filter(x -> x.getValue().level < max_level).collect(Collectors.toList());
+            List<Map.Entry<String, CategoryHierarchy>> filtered_parents = parents.entrySet().stream().filter(x -> x.getValue().level >= max_level).collect(Collectors.toList());
 
             parents.clear();
             filtered_parents.forEach(x -> parents.put(x.getKey(), x.getValue()));
@@ -171,9 +189,13 @@ public class CategoryHierarchy {
         CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat_file);
         CategoryHierarchy.fixCategoryGraphHierarchy(cat);
 
-        StringBuffer sb = new StringBuffer();
-        printCategories(cat, out_file, sb);
+        Set<CategoryHierarchy> categories = new HashSet<>();
+        CategoryHierarchy.getChildren(cat, 4, categories);
 
-        System.out.println(sb.toString());
+        System.out.println(categories);
+//        StringBuffer sb = new StringBuffer();
+//        printCategories(cat, out_file, sb);
+//
+//        System.out.println(sb.toString());
     }
 }
