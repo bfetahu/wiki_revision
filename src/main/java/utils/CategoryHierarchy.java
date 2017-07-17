@@ -1,5 +1,7 @@
 package utils;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.*;
@@ -134,17 +136,8 @@ public class CategoryHierarchy {
             sb.delete(0, sb.length());
         }
 
-        if (category.label.equals("root")) {
-            sb.append("NA\t-1\t").append(category).append("\n");
-        } else {
-            Map<String, CategoryHierarchy> parents = category.parents;
-
-            for (String parent_label : parents.keySet()) {
-                CategoryHierarchy parent = parents.get(parent_label);
-                sb.append(parent).append("\t").append(category).append("\n");
-            }
-        }
-
+        String tabs = StringUtils.repeat("\t", category.level);
+        sb.append(tabs).append(category.label).append("\n");
 
         for (String child_label : category.children.keySet()) {
             printCategories(category.children.get(child_label), out_file, sb);
@@ -191,30 +184,6 @@ public class CategoryHierarchy {
         }
     }
 
-    public static void reAssignCategoryLevelsDFS(CategoryHierarchy cat) {
-        Queue<CategoryHierarchy> q = new LinkedList();
-        q.add(cat);
-
-
-        while (!q.isEmpty()) {
-            CategoryHierarchy cat_q = q.remove();
-            if (cat_q.label.equals("root")) {
-                cat_q.level = 0;
-            } else {
-                int max_level = 0;
-                for (Map.Entry<String, CategoryHierarchy> parent : cat_q.parents.entrySet()) {
-                    int level = parent.getValue().level + 1;
-
-                    if (max_level < level) {
-                        max_level = level;
-                    }
-                }
-                cat_q.level = max_level;
-            }
-
-            q.addAll(cat_q.children.values());
-        }
-    }
 
     public String toString() {
         return new StringBuffer().append(label).append("\t").append(level).toString();
@@ -226,11 +195,12 @@ public class CategoryHierarchy {
         String out_file = "/Users/besnik/Desktop/category_hierarchy.csv";//args[1];
 
         CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat_file);
-        cat.fixCategoryGraphHierarchy();
         cat.reAssignCategoryLevels();
+        cat.fixCategoryGraphHierarchy();
+
 
         Set<CategoryHierarchy> cat_4 = new HashSet<>();
-        CategoryHierarchy.getChildren(cat, 4, cat_4);
+        CategoryHierarchy.getChildren(cat, 2, cat_4);
 
         System.out.println(cat_4);
 
