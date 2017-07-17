@@ -13,13 +13,10 @@ public class CategoryHierarchy {
     public int level;
 
 
-    public Map<String, CategoryHierarchy> parents;
-    public Map<String, CategoryHierarchy> children;
+    public Map<String, CategoryHierarchy> parents = new HashMap<>();
+    public Map<String, CategoryHierarchy> children = new HashMap<>();
 
     public CategoryHierarchy(String label, int level) {
-        children = new HashMap<>();
-        parents = new HashMap<>();
-
         this.label = label;
         this.level = level;
     }
@@ -91,17 +88,13 @@ public class CategoryHierarchy {
                 continue;
             }
 
-            String parent_label = data[2].replace("<http://dbpedia.org/resource/", "").replace(">", "");
-            String child_label = data[0].replace("<http://dbpedia.org/resource/", "").replace(">", "");
+            String parent_label = data[2].replace("<http://dbpedia.org/resource/Category:", "").replace(">", "");
+            String child_label = data[0].replace("<http://dbpedia.org/resource/Category:", "").replace(">", "");
 
             CategoryHierarchy parent = all_cats.get(parent_label);
             if (parent == null) {
                 //the category doesnt, exist, add it into the root
                 parent = new CategoryHierarchy(parent_label, root.level + 1);
-                root.children.put(parent_label, parent);
-
-                parent.parents.put(root.label, root);
-
                 all_cats.put(parent_label, parent);
             }
 
@@ -114,6 +107,14 @@ public class CategoryHierarchy {
                 all_cats.put(child_label, child);
             }
             child.parents.put(parent_label, parent);
+        }
+
+        for (String category_label : all_cats.keySet()) {
+            CategoryHierarchy category = all_cats.get(category_label);
+            if (category.parents.isEmpty()) {
+                root.children.put(category_label, category);
+                category.parents.put(root.label, root);
+            }
         }
 
         return root;
@@ -139,7 +140,8 @@ public class CategoryHierarchy {
             Map<String, CategoryHierarchy> parents = category.parents;
 
             for (String parent_label : parents.keySet()) {
-                sb.append(parents.get(parent_label)).append("\t").append(category).append("\n");
+                CategoryHierarchy parent = parents.get(parent_label);
+                sb.append(parent).append("\t").append(category).append("\n");
             }
         }
 
@@ -154,26 +156,63 @@ public class CategoryHierarchy {
 
     /**
      * Remove parent categories whose level is higher than the minimum level.
-     *
-     * @param category
      */
-    public static void fixCategoryGraphHierarchy(CategoryHierarchy category) {
-        if (!category.label.equals("root")) {
+    public void fixCategoryGraphHierarchy() {
+        if (!label.equals("root")) {
             //if its not the root category, we check the parents of this category and remove those parents for which
 
-            Map<String, CategoryHierarchy> parents = category.parents;
-            int max_level = parents.values().stream().map(x -> x.level).max((x, y) -> x.compareTo(y)).get();
-            List<Map.Entry<String, CategoryHierarchy>> filtered_parents = parents.entrySet().stream().filter(x -> x.getValue().level >= max_level).collect(Collectors.toList());
+            Map<String, CategoryHierarchy> sub_parents = parents;
+            int max_level = sub_parents.values().stream().map(x -> x.level).max((x, y) -> x.compareTo(y)).get();
+            List<Map.Entry<String, CategoryHierarchy>> filtered_parents = sub_parents.entrySet().stream().filter(x -> x.getValue().level == max_level).collect(Collectors.toList());
 
             parents.clear();
             filtered_parents.forEach(x -> parents.put(x.getKey(), x.getValue()));
 
-            category.level = max_level + 1;
+            level = max_level + 1;
         }
 
-        for (String child : category.children.keySet()) {
-            CategoryHierarchy child_category = category.children.get(child);
-            fixCategoryGraphHierarchy(child_category);
+        for (String child : children.keySet()) {
+            CategoryHierarchy child_category = children.get(child);
+            child_category.fixCategoryGraphHierarchy();
+        }
+    }
+
+    public void reAssignCategoryLevels() {
+        if (label.equals("root")) {
+            level = 0;
+        } else {
+            Map.Entry<String, CategoryHierarchy> parent = parents.entrySet().iterator().next();
+            int level = parent.getValue().level;
+            this.level = level + 1;
+        }
+
+        if (!children.isEmpty()) {
+            children.keySet().forEach(cat -> children.get(cat).reAssignCategoryLevels());
+        }
+    }
+
+    public static void reAssignCategoryLevelsDFS(CategoryHierarchy cat) {
+        Queue<CategoryHierarchy> q = new LinkedList();
+        q.add(cat);
+
+
+        while (!q.isEmpty()) {
+            CategoryHierarchy cat_q = q.remove();
+            if (cat_q.label.equals("root")) {
+                cat_q.level = 0;
+            } else {
+                int max_level = 0;
+                for (Map.Entry<String, CategoryHierarchy> parent : cat_q.parents.entrySet()) {
+                    int level = parent.getValue().level + 1;
+
+                    if (max_level < level) {
+                        max_level = level;
+                    }
+                }
+                cat_q.level = max_level;
+            }
+
+            q.addAll(cat_q.children.values());
         }
     }
 
@@ -187,15 +226,17 @@ public class CategoryHierarchy {
         String out_file = "/Users/besnik/Desktop/category_hierarchy.csv";//args[1];
 
         CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat_file);
-        CategoryHierarchy.fixCategoryGraphHierarchy(cat);
+        cat.fixCategoryGraphHierarchy();
+        cat.reAssignCategoryLevels();
 
-        Set<CategoryHierarchy> categories = new HashSet<>();
-        CategoryHierarchy.getChildren(cat, 4, categories);
+        Set<CategoryHierarchy> cat_4 = new HashSet<>();
+        CategoryHierarchy.getChildren(cat, 4, cat_4);
 
-        System.out.println(categories);
-//        StringBuffer sb = new StringBuffer();
-//        printCategories(cat, out_file, sb);
-//
-//        System.out.println(sb.toString());
+        System.out.println(cat_4);
+
+        StringBuffer sb = new StringBuffer();
+        printCategories(cat, out_file, sb);
+
+        System.out.println(sb.toString());
     }
 }
