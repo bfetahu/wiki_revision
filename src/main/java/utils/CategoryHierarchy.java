@@ -88,6 +88,13 @@ public class CategoryHierarchy {
         while ((line = reader.readLine()) != null) {
             String[] data = line.split("\\s+");
 
+            if (data[1].contains("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")) {
+                String cat_label = data[0];
+                CategoryHierarchy cat = new CategoryHierarchy(cat_label, 0);
+                all_cats.put(cat_label, cat);
+                continue;
+            }
+
             if (!data[1].contains("broader")) {
                 continue;
             }
@@ -194,10 +201,9 @@ public class CategoryHierarchy {
 
     //args[0]=skos_categories, args[1]=article_categories, args[2]=outputFile, args[3]=level
     public static void main(String[] args) throws IOException, CompressorException {
-
         //for testing
         String cat2cat_mappings = args[0];
-        Map<String, Set<String>> categoriesToArticles = new HashMap<String, Set<String>>();
+        Map<String, Set<String>> categoriesToArticles = new HashMap<>();
         System.out.println("Read Category Mappings...");
         readCategoryMappings(args[1], categoriesToArticles);
 
@@ -210,6 +216,8 @@ public class CategoryHierarchy {
         //get all categories at a specific level
         Set<CategoryHierarchy> cat_2 = new HashSet<>();
         CategoryHierarchy.getChildren(cat, Integer.parseInt(args[3]), cat_2);
+        CategoryHierarchy.getChildren(cat, 1, cat_2);
+//        System.out.println(cat_2);
 
         //iterate to get all sub-categories for all categories at the given level
         Map<String, Set<String>> levelcatToSubcategories = new HashMap<>();
@@ -218,16 +226,14 @@ public class CategoryHierarchy {
         //retrieve all articles for all subcategories
         System.out.println("Retrieve entities...");
         Map<String, Set<String>> levelcategoriesToEntities = new HashMap<>();
-        for (String levelcat : levelcatToSubcategories.keySet()){
+        for (String levelcat : levelcatToSubcategories.keySet()) {
             Set<String> entities = new HashSet<>();
-            for (String subcat : levelcatToSubcategories.get(levelcat)){
-                if (!categoriesToArticles.containsKey(subcat)){
+            for (String subcat : levelcatToSubcategories.get(levelcat)) {
+                if (!categoriesToArticles.containsKey(subcat)) {
                     System.out.println("No entities for category: " + subcat);
                     continue; //in case the subcategory contains no entities
                 }
-                for (String entity : categoriesToArticles.get(subcat)){
-                    entities.add(entity);
-                }
+                entities.addAll(categoriesToArticles.get(subcat));
             }
             levelcategoriesToEntities.put(levelcat, entities);
         }
@@ -238,28 +244,28 @@ public class CategoryHierarchy {
     }
 
 
-    public static void writeToOutputFile(Map<String, Set<String>> levelcategoriesToEntities, String outputFile){
+    public static void writeToOutputFile(Map<String, Set<String>> levelcategoriesToEntities, String outputFile) {
         String tab = "\t";
         StringBuffer sb = new StringBuffer();
         String newline = "\n";
-        for (String levelcat : levelcategoriesToEntities.keySet()){
+        for (String levelcat : levelcategoriesToEntities.keySet()) {
             sb.append(levelcat).append(tab).append(levelcategoriesToEntities.get(levelcat)).append(newline);
         }
         FileUtils.saveText(sb.toString(), outputFile);
     }
 
 
-    public static void iterateOverHierarchy(Set<CategoryHierarchy> cats_at_level, Map<String, Set<String>> subcategories){
-        for (CategoryHierarchy cat : cats_at_level){
+    public static void iterateOverHierarchy(Set<CategoryHierarchy> cats_at_level, Map<String, Set<String>> subcategories) {
+        for (CategoryHierarchy cat : cats_at_level) {
             Set<String> subcategories_of_cat = new HashSet<String>();
             subcategories.put(cat.label, subcategories_of_cat);
             iterate(cat, subcategories_of_cat);
         }
     }
 
-    public static void iterate(CategoryHierarchy current_cat, Set<String> subcategories){
+    public static void iterate(CategoryHierarchy current_cat, Set<String> subcategories) {
         subcategories.add(current_cat.label);
-        for (String child : current_cat.children.keySet()){
+        for (String child : current_cat.children.keySet()) {
             iterate(current_cat.children.get(child), subcategories);
         }
     }
@@ -279,16 +285,16 @@ public class CategoryHierarchy {
         String category_string = "Category:";
 
         while ((line = br_articlesCategoryMappings.readLine()) != null) {
-            line = line.replace(dbpediaResource,emptyString).replace(close_character,emptyString);
+            line = line.replace(dbpediaResource, emptyString).replace(close_character, emptyString);
             parts = line.split(space);
             article = parts[0];
             category = parts[2].replace(category_string, emptyString);
 
-            if (categoriesToArticles.containsKey(category)){
+            if (categoriesToArticles.containsKey(category)) {
                 set = categoriesToArticles.get(category);
                 set.add(article);
 //                System.out.println("Category: " + category + " contains articles: " + set);
-            } else{
+            } else {
                 Set<String> newSet = new HashSet<String>();
                 newSet.add(article);
                 categoriesToArticles.put(category, newSet);
