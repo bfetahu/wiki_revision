@@ -89,7 +89,7 @@ public class CategoryHierarchy {
             String[] data = line.split("\\s+");
 
             if (data[1].contains("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")) {
-                String cat_label = data[0];
+                String cat_label = data[0].replace("<http://dbpedia.org/resource/Category:", "").replace(">", "");
                 CategoryHierarchy cat = new CategoryHierarchy(cat_label, 0);
                 all_cats.put(cat_label, cat);
                 continue;
