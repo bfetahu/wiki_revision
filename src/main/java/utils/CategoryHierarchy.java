@@ -1,11 +1,10 @@
 package utils;
 
 import org.apache.commons.compress.compressors.CompressorException;
-import org.apache.commons.compress.compressors.CompressorInputStream;
-import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -273,7 +272,7 @@ public class CategoryHierarchy {
         }
     }
 
-    public static void readCategoryMappings(String file, Map<String, Set<String>> categoriesToArticles) throws IOException, CompressorException {
+    public static void readCategoryMappings(String file, Map<String, Set<String>> categoriesToArticles) throws IOException {
         BufferedReader br_articlesCategoryMappings = FileUtils.getFileReader(file);
 
         String line;
