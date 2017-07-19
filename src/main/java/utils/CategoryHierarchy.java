@@ -1,9 +1,11 @@
 package utils;
 
+import org.apache.commons.compress.compressors.CompressorException;
+import org.apache.commons.compress.compressors.CompressorInputStream;
+import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.BufferedReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -190,23 +192,119 @@ public class CategoryHierarchy {
     }
 
 
-    public static void main(String[] args) throws IOException {
-        String cat_file = "/Users/besnik/Desktop/skos_categories_en.nt";//args[0];
-        String out_file = "/Users/besnik/Desktop/category_hierarchy.csv";//args[1];
+    //args[0]=skos_categories, args[1]=article_categories, args[2]=outputFile, args[3]=level
+    public static void main(String[] args) throws IOException, CompressorException {
 
-        CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat_file);
+        //for testing
+        String cat2cat_mappings = args[0];
+        Map<String, Set<String>> categoriesToArticles = new HashMap<String, Set<String>>();
+        System.out.println("Read Category Mappings...");
+        readCategoryMappings(args[1], categoriesToArticles);
+
+        System.out.println("Read Category Graph...");
+        CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat2cat_mappings);
         cat.reAssignCategoryLevels();
         cat.fixCategoryGraphHierarchy();
 
+        System.out.println("Retrieve subcategories...");
+        //get all categories at a specific level
+        Set<CategoryHierarchy> cat_2 = new HashSet<>();
+        CategoryHierarchy.getChildren(cat, Integer.parseInt(args[3]), cat_2);
 
-        Set<CategoryHierarchy> cat_4 = new HashSet<>();
-        CategoryHierarchy.getChildren(cat, 2, cat_4);
+        //iterate to get all sub-categories for all categories at the given level
+        Map<String, Set<String>> levelcatToSubcategories = new HashMap<>();
+        iterateOverHierarchy(cat_2, levelcatToSubcategories);
 
-        System.out.println(cat_4);
+        //retrieve all articles for all subcategories
+        System.out.println("Retrieve entities...");
+        Map<String, Set<String>> levelcategoriesToEntities = new HashMap<>();
+        for (String levelcat : levelcatToSubcategories.keySet()){
+            Set<String> entities = new HashSet<>();
+            for (String subcat : levelcatToSubcategories.get(levelcat)){
+                if (!categoriesToArticles.containsKey(subcat)){
+                    System.out.println("No entities for category: " + subcat);
+                    continue; //in case the subcategory contains no entities
+                }
+                for (String entity : categoriesToArticles.get(subcat)){
+                    entities.add(entity);
+                }
+            }
+            levelcategoriesToEntities.put(levelcat, entities);
+        }
 
+        System.out.println("Output results...");
+        writeToOutputFile(levelcategoriesToEntities, args[2]);
+        System.out.println("Done");
+    }
+
+
+    public static void writeToOutputFile(Map<String, Set<String>> levelcategoriesToEntities, String outputFile){
+        String tab = "\t";
         StringBuffer sb = new StringBuffer();
-        printCategories(cat, out_file, sb);
+        String newline = "\n";
+        for (String levelcat : levelcategoriesToEntities.keySet()){
+            sb.append(levelcat).append(tab).append(levelcategoriesToEntities.get(levelcat)).append(newline);
+        }
+        FileUtils.saveText(sb.toString(), outputFile);
+    }
 
-        System.out.println(sb.toString());
+
+    public static void iterateOverHierarchy(Set<CategoryHierarchy> cats_at_level, Map<String, Set<String>> subcategories){
+        for (CategoryHierarchy cat : cats_at_level){
+            Set<String> subcategories_of_cat = new HashSet<String>();
+            subcategories.put(cat.label, subcategories_of_cat);
+            iterate(cat, subcategories_of_cat);
+        }
+    }
+
+    public static void iterate(CategoryHierarchy current_cat, Set<String> subcategories){
+        subcategories.add(current_cat.label);
+        for (String child : current_cat.children.keySet()){
+            iterate(current_cat.children.get(child), subcategories);
+        }
+    }
+
+    public static void readCategoryMappings(String file, Map<String, Set<String>> categoriesToArticles) throws IOException, CompressorException {
+        BufferedReader br_articlesCategoryMappings = getBufferedReaderForCompressedFile(file);
+
+        String line;
+        String[] parts;
+        String article;
+        String category;
+        String dbpediaResource = "<http://dbpedia.org/resource/";
+        String close_character = ">";
+        String emptyString = "";
+        Set<String> set;
+        String space = " ";
+        String category_string = "Category:";
+
+        while ((line = br_articlesCategoryMappings.readLine()) != null) {
+            line = line.replace(dbpediaResource,emptyString).replace(close_character,emptyString);
+            parts = line.split(space);
+            article = parts[0];
+            category = parts[2].replace(category_string, emptyString);
+
+            if (categoriesToArticles.containsKey(category)){
+                set = categoriesToArticles.get(category);
+                set.add(article);
+//                System.out.println("Category: " + category + " contains articles: " + set);
+            } else{
+                Set<String> newSet = new HashSet<String>();
+                newSet.add(article);
+                categoriesToArticles.put(category, newSet);
+//                System.out.println("Category: " + category + " contains articles: " + newSet);
+            }
+        }
+
+        br_articlesCategoryMappings.close();
+    }
+
+
+    public static BufferedReader getBufferedReaderForCompressedFile(String fileIn) throws FileNotFoundException, CompressorException {
+        FileInputStream fin = new FileInputStream(fileIn);
+        BufferedInputStream bis = new BufferedInputStream(fin);
+        CompressorInputStream input = new CompressorStreamFactory().createCompressorInputStream(bis);
+        BufferedReader br2 = new BufferedReader(new InputStreamReader(input));
+        return br2;
     }
 }
