@@ -24,31 +24,6 @@ public class CategoryHierarchy {
         this.level = level;
     }
 
-
-    /**
-     * Find a specific category in the category graph.
-     *
-     * @param label
-     * @return
-     */
-    public CategoryHierarchy findCategory(String label) {
-        if (this.label.equals(label)) {
-            return this;
-        }
-
-        if (!children.isEmpty()) {
-            for (String child_label : children.keySet()) {
-                CategoryHierarchy rst = children.get(child_label).findCategory(label);
-
-                if (rst != null) {
-                    return rst;
-                }
-            }
-        }
-
-        return null;
-    }
-
     /**
      * Return the set of categories that belong to a certain level in the Wikipedia category taxonomy.
      *
