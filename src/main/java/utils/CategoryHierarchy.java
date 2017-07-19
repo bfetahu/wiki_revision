@@ -274,7 +274,7 @@ public class CategoryHierarchy {
     }
 
     public static void readCategoryMappings(String file, Map<String, Set<String>> categoriesToArticles) throws IOException, CompressorException {
-        BufferedReader br_articlesCategoryMappings = getBufferedReaderForCompressedFile(file);
+        BufferedReader br_articlesCategoryMappings = FileUtils.getFileReader(file);
 
         String line;
         String[] parts;
@@ -298,7 +298,7 @@ public class CategoryHierarchy {
                 set.add(article);
 //                System.out.println("Category: " + category + " contains articles: " + set);
             } else {
-                Set<String> newSet = new HashSet<String>();
+                Set<String> newSet = new HashSet<>();
                 newSet.add(article);
                 categoriesToArticles.put(category, newSet);
 //                System.out.println("Category: " + category + " contains articles: " + newSet);
@@ -306,14 +306,5 @@ public class CategoryHierarchy {
         }
 
         br_articlesCategoryMappings.close();
-    }
-
-
-    public static BufferedReader getBufferedReaderForCompressedFile(String fileIn) throws FileNotFoundException, CompressorException {
-        FileInputStream fin = new FileInputStream(fileIn);
-        BufferedInputStream bis = new BufferedInputStream(fin);
-        CompressorInputStream input = new CompressorStreamFactory().createCompressorInputStream(bis);
-        BufferedReader br2 = new BufferedReader(new InputStreamReader(input));
-        return br2;
     }
 }
