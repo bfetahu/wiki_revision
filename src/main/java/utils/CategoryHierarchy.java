@@ -89,13 +89,16 @@ public class CategoryHierarchy {
             String[] data = line.split("\\s+");
 
             if (data[1].contains("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")) {
+                //the category doesnt, exist, add it into the root
                 String cat_label = data[0].replace("<http://dbpedia.org/resource/Category:", "").replace(">", "");
                 CategoryHierarchy cat = new CategoryHierarchy(cat_label, 0);
+                cat.parents.put(root.label, root);
+                root.children.put(cat.label, cat);
                 all_cats.put(cat_label, cat);
                 continue;
             }
 
-            if (!data[1].contains("broader")) {
+            if (!data[1].contains("<http://www.w3.org/2004/02/skos/core#broader>") || data[2].equals(data[0])) {
                 continue;
             }
 
@@ -104,27 +107,24 @@ public class CategoryHierarchy {
 
             CategoryHierarchy parent = all_cats.get(parent_label);
             if (parent == null) {
-                //the category doesnt, exist, add it into the root
                 parent = new CategoryHierarchy(parent_label, root.level + 1);
-                all_cats.put(parent_label, parent);
+                parent.parents.put(root.label, root);
+                root.children.put(parent.label, parent);
+                all_cats.put(parent.label, parent);
             }
-
             CategoryHierarchy child = all_cats.get(child_label);
             if (child == null) {
-                //the category didn't exist before
                 child = new CategoryHierarchy(child_label, parent.level + 1);
-                parent.children.put(child_label, child);
-
-                all_cats.put(child_label, child);
+                all_cats.put(child.label, child);
             }
-            child.parents.put(parent_label, parent);
-        }
 
-        for (String category_label : all_cats.keySet()) {
-            CategoryHierarchy category = all_cats.get(category_label);
-            if (category.parents.isEmpty()) {
-                root.children.put(category_label, category);
-                category.parents.put(root.label, root);
+            child.level = parent.level + 1;
+            parent.children.put(child_label, child);
+            child.parents.put(parent_label, parent);
+
+            if (child.parents.containsKey("root")) {
+                child.parents.remove("root");
+                root.children.remove(child.label);
             }
         }
 
@@ -161,6 +161,7 @@ public class CategoryHierarchy {
      */
     public void fixCategoryGraphHierarchy() {
         if (!label.equals("root")) {
+            System.out.println("Processing " + label);
             //if its not the root category, we check the parents of this category and remove those parents for which
 
             Map<String, CategoryHierarchy> sub_parents = parents;
@@ -209,10 +210,12 @@ public class CategoryHierarchy {
 
         System.out.println("Read Category Graph...");
         CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat2cat_mappings);
-        cat.reAssignCategoryLevels();
         cat.fixCategoryGraphHierarchy();
+        cat.reAssignCategoryLevels();
 
-        System.out.println("Retrieve subcategories...");
+//        printCategories(cat, "/Users/besnik/Desktop/category_hieararchy.csv", new StringBuffer());
+
+//        System.out.println("Retrieve subcategories...");
         //get all categories at a specific level
         Set<CategoryHierarchy> cat_2 = new HashSet<>();
         CategoryHierarchy.getChildren(cat, Integer.parseInt(args[3]), cat_2);
