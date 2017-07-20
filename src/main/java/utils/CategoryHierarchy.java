@@ -244,9 +244,9 @@ public class CategoryHierarchy {
         CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat2cat_mappings);
 
 
-        StringBuffer sb = new StringBuffer();
-        cat.printCategories("/Users/besnik/Desktop/category_hieararchy.csv", sb);
-        FileUtils.saveText(sb.toString(), "/Users/besnik/Desktop/category_hieararchy.csv", true);
+//        StringBuffer sb = new StringBuffer();
+//        cat.printCategories("/Users/besnik/Desktop/category_hieararchy.csv", sb);
+//        FileUtils.saveText(sb.toString(), "/Users/besnik/Desktop/category_hieararchy.csv", true);
 
         System.out.println("Retrieve subcategories...");
         //get all categories at a specific level
