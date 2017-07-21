@@ -99,18 +99,21 @@ public class CategoryHierarchy {
 
 
         //we first need to break the cycles
-
         for (String cat_label : all_cats.keySet()) {
             CategoryHierarchy cat = all_cats.get(cat_label);
+
             cat.parents.keySet().removeAll(cat.children.keySet());
             if (cat.parents.size() == 1) {
                 continue;
             }
             if (cat.parents.size() > 1 && cat.parents.containsKey("root")) {
                 cat.parents.remove("root");
+            } else if(cat.parents.size() == 0){
+                cat.parents.put(root.label, root);
+                root.children.put(cat.label, cat);
             }
-            fixCategoryGraphHierarchy(cat);
         }
+        fixCategoryGraphHierarchy(root);
         root.reAssignCategoryLevels();
         return root;
     }
@@ -242,7 +245,6 @@ public class CategoryHierarchy {
 
         System.out.println("Read Category Graph...");
         CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat2cat_mappings);
-
 
 //        StringBuffer sb = new StringBuffer();
 //        cat.printCategories("/Users/besnik/Desktop/category_hieararchy.csv", sb);
