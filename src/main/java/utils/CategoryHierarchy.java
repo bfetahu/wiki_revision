@@ -25,18 +25,6 @@ public class CategoryHierarchy {
         this.level = level;
     }
 
-    public Set<String> getChildren() {
-        Set<String> children = new HashSet<>();
-
-        children.addAll(this.children.keySet());
-
-        for (String child_label : this.children.keySet()) {
-            CategoryHierarchy child_category = this.children.get(child_label);
-            children.addAll(child_category.getChildren());
-        }
-        return children;
-    }
-
 
     /**
      * Return the set of categories that belong to a certain level in the Wikipedia category taxonomy.
