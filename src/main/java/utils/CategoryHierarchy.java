@@ -108,7 +108,7 @@ public class CategoryHierarchy {
             }
             if (cat.parents.size() > 1 && cat.parents.containsKey("root")) {
                 cat.parents.remove("root");
-            } else if(cat.parents.size() == 0){
+            } else if (cat.parents.size() == 0) {
                 cat.parents.put(root.label, root);
                 root.children.put(cat.label, cat);
             }
