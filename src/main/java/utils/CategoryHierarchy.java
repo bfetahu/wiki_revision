@@ -109,8 +109,6 @@ public class CategoryHierarchy {
             }
         }
         removeCyclesDFS(root);
-        System.out.println("Finished removing cycles");
-
         root.setLevels(0);
         root.ensureHierarchy();
 
@@ -264,16 +262,18 @@ public class CategoryHierarchy {
 
     //args[0]=skos_categories, args[1]=article_categories, args[2]=outputFile, args[3]=level
     public static void main(String[] args) throws IOException, CompressorException {
-//        String[] args1 = {"/Users/besnik/Desktop/skos_categories_en.nt.gz", "/Users/besnik/Desktop/article_categories_en.ttl.bz2", "/Users/besnik/Desktop/output.txt", "2"};
-//        args = args1;
+        String[] args1 = {"/Users/besnik/Desktop/skos_categories_en.nt.gz", "/Users/besnik/Desktop/article_categories_en.ttl.bz2", "/Users/besnik/Desktop/output.txt", "2"};
+        args = args1;
 
         //for testing
         String cat2cat_mappings = args[0];
-        System.out.println("Read Category Mappings...");
-        Map<String, Set<String>> categoriesToArticles = readCategoryMappings(args[1]);
-
         System.out.println("Read Category Graph...");
         CategoryHierarchy cat = CategoryHierarchy.readCategoryGraph(cat2cat_mappings);
+
+        //get all categories at a specific level
+        Set<CategoryHierarchy> cat_2 = new HashSet<>();
+        CategoryHierarchy.getChildrenLevel(cat, Integer.parseInt(args[3]), cat_2);
+
 
         StringBuffer sb = new StringBuffer();
         String cat_hierarchy_file = "/Users/besnik/Desktop/category_hieararchy.csv";
@@ -284,12 +284,11 @@ public class CategoryHierarchy {
         FileUtils.saveText(sb.toString(), cat_hierarchy_file, true);
 
         System.out.println("Retrieve subcategories...");
-        //get all categories at a specific level
-        Set<CategoryHierarchy> cat_2 = new HashSet<>();
-        CategoryHierarchy.getChildrenLevel(cat, Integer.parseInt(args[3]), cat_2);
-        CategoryHierarchy.getChildrenLevel(cat, 1, cat_2);
+        Map<String, Set<String>> categoriesToArticles = readCategoryMappings(args[1]);
+
 
         //iterate to get all sub-categories for all categories at the given level
+        System.out.println("Read Category Mappings...");
         Map<String, Set<String>> levelcatToSubcategories = new HashMap<>();
         iterateOverHierarchy(cat_2, levelcatToSubcategories);
 
