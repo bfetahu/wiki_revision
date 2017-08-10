@@ -65,8 +65,8 @@
         </dependency>
         <dependency>
             <groupId>de.l3s.fetahu</groupId>
-            <artifactId>utils</artifactId>
-            <version>2.0</version>
+            <artifactId>io_utils</artifactId>
+            <version>1.1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
