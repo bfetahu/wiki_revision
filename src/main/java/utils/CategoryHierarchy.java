@@ -251,8 +251,6 @@ public class CategoryHierarchy {
                 }
             }
         }
-
-
     }
 
     public String toString() {

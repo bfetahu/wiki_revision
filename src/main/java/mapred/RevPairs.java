@@ -1,10 +1,13 @@
 package mapred;
 
 import entities.WikiEntity;
+import gnu.trove.list.array.TLongArrayList;
+import io.FileUtils;
 import mapred.io.WikiText;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.compress.BZip2Codec;
@@ -18,9 +21,10 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.json.JSONObject;
 import revisions.RevContentComparison;
-import utils.WikiUtils;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.TreeMap;
 
 
 /**
@@ -38,7 +42,6 @@ public class RevPairs extends Configured implements Tool {
         long milliSeconds = 10000 * 60 * 60;// <default is 600000, likewise can give any value)
 
         conf.setLong("mapreduce.task.timeout", milliSeconds);
-        conf.set("mapreduce.output.compress", "true");
         conf.set("mapreduce.child.java.opts", "8192m");
 
         String data_dir = "", out_dir = "";
@@ -61,7 +64,7 @@ public class RevPairs extends Configured implements Tool {
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
-        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputKeyClass(IntWritable.class);
         job.setMapOutputValueClass(WikiText.class);
 
         job.setMapperClass(PairMapper.class);
@@ -82,7 +85,7 @@ public class RevPairs extends Configured implements Tool {
     /**
      * Reduces the output from the mappers which measures the frequency of a type assigned to resources in BTC.
      */
-    public static class PairReducer extends Reducer<Text, WikiText, LongWritable, Text> {
+    public static class PairReducer extends Reducer<Text, WikiText, Text, Text> {
         @Override
         protected void reduce(Text key, Iterable<WikiText> values, Context context) throws IOException, InterruptedException {
             RevContentComparison rc = new RevContentComparison();
@@ -90,32 +93,60 @@ public class RevPairs extends Configured implements Tool {
             wiki.utils.WikiUtils.timeout = 30000;
 
             //is the initial revision
-            WikiEntity prev_revision = null;
-            long counter = key.hashCode();
+            Map<Long, WikiText> revisions = new TreeMap<>();
             for (WikiText value : values) {
-                sb.delete(0, sb.length());
-                WikiEntity current_revision = RevisionPairComparison.parseEntities(value.text, false);
-                if (current_revision == null) {
-                    continue;
-                }
-                if (prev_revision == null) {
-                    sb.append(rc.printInitialRevision(current_revision));
-                } else {
-                    sb.append(rc.compareWithOldRevision(current_revision, prev_revision));
-                }
-                prev_revision = current_revision;
-
-                counter++;
-                context.write(new LongWritable(counter), new Text(sb.toString()));
+                revisions.put(value.rev_id, value);
             }
+
+            if (revisions.size() == 0) {
+                long rev_id = revisions.keySet().iterator().next();
+                WikiEntity current_revision = RevisionPairComparison.parseEntities(revisions.get(rev_id).text, false);
+                sb.append(rc.printInitialRevision(current_revision));
+            } else {
+                WikiEntity prev_revision = null, current_revision = null;
+                for (long rev_id : revisions.keySet()) {
+                    if (prev_revision != null) {
+                        prev_revision = RevisionPairComparison.parseEntities(revisions.get(rev_id).text, false);
+                    } else {
+                        current_revision = RevisionPairComparison.parseEntities(revisions.get(rev_id).text, false);
+                    }
+                }
+                sb.append(rc.compareWithOldRevision(current_revision, prev_revision));
+            }
+            context.write(key, new Text(sb.toString()));
         }
     }
-
 
     /**
      * Read entity revisions into the WikipediaEntityRevision class.
      */
-    public static class PairMapper extends Mapper<LongWritable, Text, Text, WikiText> {
+    public static class PairMapper extends Mapper<LongWritable, Text, IntWritable, WikiText> {
+        protected TLongArrayList rev_pairs;
+
+        @Override
+        public void setup(Mapper.Context context) throws IOException {
+            rev_pairs = (TLongArrayList) FileUtils.readObject("rp");
+        }
+
+        /**
+         * Find the matching entries for a given revision id.
+         *
+         * @param rev_id
+         * @return
+         */
+        private int[] generateKey(long rev_id) {
+            int index = rev_pairs.indexOf(rev_id);
+
+            //each revision is added into two slots. In the first it is compared against a previous entry,
+            //and in the second slot it serves for comparison against a newer entry
+
+            if (index == 0 || rev_pairs.get(index - 1) == -1l) {
+                return new int[]{index};
+            } else {
+                return new int[]{(index-1), index};
+            }
+        }
+
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             String rev_text = value.toString();
@@ -123,14 +154,17 @@ public class RevPairs extends Configured implements Tool {
 
             try {
                 JSONObject rev_json = new JSONObject(rev_text);
-                String timestamp = rev_json.getString("timestamp");
-                int start = timestamp.indexOf("-");
-                String key_timestamp = rev_json.getString("title") + "-" + timestamp.substring(0, start);
+                long rev_id = rev_json.getLong("id");
+
+                int[] keys_out = generateKey(rev_id);
 
                 WikiText wiki = new WikiText();
-                wiki.rev_id = rev_json.getLong("id");
+                wiki.rev_id = rev_id;
                 wiki.text = rev_text;
-                context.write(new Text(key_timestamp), wiki);
+
+                for (int key_out : keys_out) {
+                    context.write(new IntWritable(key_out), wiki);
+                }
             } catch (Exception e) {
                 //for the few revisions where the username breaks the json.
                 System.out.println(e.getMessage());

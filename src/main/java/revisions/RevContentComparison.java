@@ -6,6 +6,7 @@ import entities.WikiStatement;
 import gnu.trove.set.hash.TIntHashSet;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.commons.lang3.tuple.Triple;
+import org.json.JSONObject;
 import utils.RevisionUtils;
 
 import java.io.IOException;
@@ -206,6 +207,7 @@ public class RevContentComparison {
             if (citation_counter != 0) {
                 sb.append(",");
             }
+
 
             String[] citation = entity_citations.get(cite_id);
             sb.append("{\"url\":\"").append(StringEscapeUtils.escapeJson(citation[1])).append("\",\"label\":").append(label).append("}");

@@ -14,6 +14,7 @@ public class WikiText implements WritableComparable<WikiText>, Serializable {
     public long rev_id;
     public String text;
 
+
     @Override
     public void write(DataOutput out) throws IOException {
         out.writeLong(rev_id);
