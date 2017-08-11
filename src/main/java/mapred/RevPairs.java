@@ -95,11 +95,10 @@ public class RevPairs extends Configured implements Tool {
             List<WikiEntity> sorted_vals = new ArrayList<>();
             for (Text value : values) {
                 WikiEntity entity = RevisionPairComparison.parseEntities(value.toString(), false);
+                if (entity == null) {
+                    return;
+                }
                 sorted_vals.add(entity);
-            }
-
-            for (WikiEntity val : sorted_vals) {
-                System.out.println(key + "\t" + val.getRevisionID());
             }
 
             if (sorted_vals.size() == 2) {
