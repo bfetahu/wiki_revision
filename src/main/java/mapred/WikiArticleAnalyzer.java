@@ -15,7 +15,6 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import org.hedera.io.input.WikiRevisionTextInputFormat;
 import wiki.utils.WikiUtils;
 
 import java.io.IOException;
@@ -83,7 +82,7 @@ public class WikiArticleAnalyzer extends Configured implements Tool {
             for (Text value : values) {
                 try {
                     String rev_text = value.toString();
-                    rev_text = rev_text.substring(rev_text.indexOf("\t")).trim();
+                    rev_text = rev_text.substring(rev_text.indexOf("\t")).trim().replaceAll("\\s{2,}", "");
                     WikiUtils.timeout = 30000;
                     WikiEntity entity = WikiUtils.parseEntity(rev_text, true);
 

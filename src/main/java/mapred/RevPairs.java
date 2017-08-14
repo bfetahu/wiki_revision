@@ -158,7 +158,7 @@ public class RevPairs extends Configured implements Tool {
                 String title = rev_json.getString("title");
 
                 int[] keys_out = generateKey(rev_id, title);
-                if (keys_out == null) {
+                if (keys_out == null || rev_text.contains("========")) {
                     return;
                 }
                 for (int key_out : keys_out) {

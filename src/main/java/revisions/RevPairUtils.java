@@ -2,7 +2,6 @@ package revisions;
 
 import com.google.common.base.Splitter;
 import gnu.trove.list.array.TIntArrayList;
-import gnu.trove.list.array.TLongArrayList;
 import io.FileUtils;
 
 import java.io.BufferedReader;
@@ -16,51 +15,37 @@ import java.util.Map;
  */
 public class RevPairUtils {
     public static void main(String[] args) throws IOException {
-        createCompressedRevMaps(args);
+        splitMaps(args);
     }
 
-    public static void createRevMaps(String args[]) throws IOException {
-        //generate all possible revision pairs for an entity
-        BufferedReader reader = FileUtils.getFileReader(args[0]);
-        TLongArrayList rev_pairs = new TLongArrayList();
-        String line;
+    public static void splitMaps(String args[]) throws IOException {
+        Map<Integer, TIntArrayList> map = (Map<Integer, TIntArrayList>) FileUtils.readObject(args[0]);
+        System.out.println(map.size());
 
-        String entity = "";
+        int mid_size = (int) (map.size() / 2.0);
+        Map<Integer, TIntArrayList> map_1 = new HashMap<>();
+
         int counter = 0;
-        int part = 0;
-        rev_pairs.add(-1l);
-        while ((line = reader.readLine()) != null) {
+        for (int key : map.keySet()) {
+            map_1.put(key, map.get(key));
             counter++;
-            if (counter % 10000 == 0) {
-                System.out.printf("There are %d lines processed so far.\n", counter);
-            }
-            Iterator<String> data_iter = Splitter.onPattern("\t").split(line).iterator();
-            long rev_id = Long.valueOf(data_iter.next());
-            String current_entity = data_iter.next().intern();
 
-            if (current_entity.contains("Talk:") || current_entity.contains("User:") || current_entity.contains("Category:")) {
+            if (counter > mid_size) {
+                break;
+            }
+        }
+        FileUtils.saveObject(map_1, args[1]);
+        counter = 0;
+        map_1.clear();
+        for (int key : map.keySet()) {
+            if (counter <= mid_size) {
+                counter++;
                 continue;
             }
-
-
-            if (!current_entity.equals(entity) && counter > 100000000) {
-                String out_file = args[1] + "_part_" + part + ".hash";
-                FileUtils.saveObject(rev_pairs, out_file);
-                part++;
-                rev_pairs.clear();
-                counter = 0;
-            }
-
-            if (!entity.isEmpty() && !current_entity.equals(entity)) {
-                rev_pairs.add(-1l);
-            }
-            rev_pairs.add(rev_id);
-            entity = current_entity;
+            map_1.put(key, map.get(key));
+            counter++;
         }
-
-        String out_file = args[1] + "_part_" + part + ".hash";
-        FileUtils.saveObject(rev_pairs, out_file);
-        System.out.println("Finished writing revision pairs for " + rev_pairs.size());
+        FileUtils.saveObject(map_1, args[2]);
     }
 
     public static void createCompressedRevMaps(String args[]) throws IOException {

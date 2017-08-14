@@ -142,7 +142,10 @@ public class RevisionPairComparison extends Configured implements Tool {
             revision.setMainSectionsOnly(false);
             revision.setSplitSections(true);
 
-            revision.parseContent(true);
+            boolean parsed = revision.parseContent(true);
+            if (!parsed) {
+                return null;
+            }
             return revision;
         } catch (Exception e) {
             return null;
