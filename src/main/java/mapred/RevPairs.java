@@ -125,7 +125,7 @@ public class RevPairs extends Configured implements Tool {
         public void setup(Mapper.Context context) throws IOException {
             rev_pairs = (Map<Integer, TIntArrayList>) FileUtils.readObject("rp");
 
-            if (FileUtils.fileExists("rp1", false)) {
+            if (FileUtils.fileExists("rp1", true)) {
                 Map<Integer, TIntArrayList> rev_pairs_tmp = (Map<Integer, TIntArrayList>) FileUtils.readObject("rp1");
                 rev_pairs.putAll(rev_pairs_tmp);
             }
