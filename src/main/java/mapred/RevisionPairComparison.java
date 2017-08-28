@@ -137,6 +137,7 @@ public class RevisionPairComparison extends Configured implements Tool {
 
         try {
             WikiEntity revision = WikiUtils.parseEntity(rev_text, true);
+            revision.is_citation_hash_key = true;
             revision.setExtractStatements(false);
             revision.setExtractReferences(true);
             revision.setMainSectionsOnly(false);
